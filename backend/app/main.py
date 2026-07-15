@@ -1,9 +1,14 @@
 from fastapi import FastAPI
 
+from app.api.cards import router as cards_router
+
+
 app = FastAPI(
     title="LunaArc Backend",
     version="0.1.0",
 )
+
+app.include_router(cards_router)
 
 
 @app.get("/api/health")
