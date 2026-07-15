@@ -1,6 +1,7 @@
 from fastapi import FastAPI
 
 from app.api.cards import router as cards_router
+from app.api.readings import router as readings_router
 
 
 app = FastAPI(
@@ -9,6 +10,7 @@ app = FastAPI(
 )
 
 app.include_router(cards_router)
+app.include_router(readings_router)
 
 
 @app.get("/api/health")
