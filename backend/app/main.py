@@ -4,27 +4,25 @@ from fastapi.middleware.cors import CORSMiddleware
 from app.api.cards import router as cards_router
 from app.api.detection import router as detection_router
 from app.api.readings import router as readings_router
+from app.config.settings import get_settings
 
+
+settings = get_settings()
 
 app = FastAPI(
-    title="LunaArc Backend",
-    version="0.1.0",
+    title=settings.app_name,
+    version=settings.app_version,
 )
 
-allowed_origins = [
-    "http://localhost:5173",
-    "http://127.0.0.1:5173",
-    "http://localhost:3000",
-    "http://127.0.0.1:3000",
-]
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=allowed_origins,
+    allow_origins=settings.cors_origins.split(","),
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
 
 app.include_router(cards_router)
 app.include_router(detection_router)
