@@ -1,0 +1,29 @@
+[
+  {
+    "card_id": "major_00",
+    "class_id": 0,
+    "name_en": "The Fool",
+    "name_zh": "愚者",
+    "image": "/cards/major_00.png",
+    "upright_keywords": ["开始", "自由", "冒险"],
+    "reversed_keywords": ["冲动", "迟疑", "风险"]
+  },
+  {
+    "card_id": "major_01",
+    "class_id": 1,
+    "name_en": "The Magician",
+    "name_zh": "魔术师",
+    "image": "/cards/major_01.png",
+    "upright_keywords": ["行动", "创造", "能力"],
+    "reversed_keywords": ["欺骗", "犹豫", "能力受阻"]
+  },
+  {
+    "card_id": "major_02",
+    "class_id": 2,
+    "name_en": "The High Priestess",
+    "name_zh": "女祭司",
+    "image": "/cards/major_02.png",
+    "upright_keywords": ["直觉", "智慧", "潜意识"],
+    "reversed_keywords": ["迷茫", "封闭", "忽视直觉"]
+  }
+]
