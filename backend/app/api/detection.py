@@ -1,7 +1,7 @@
 from fastapi import APIRouter, File, HTTPException, UploadFile, status
 
 from app.schemas.detection import DetectionResponse
-from app.services.vision_service import vision_service
+from app.adapters.vision_adapter import vision_adapter
 
 
 router = APIRouter(prefix="/api/detect", tags=["detection"])
@@ -51,7 +51,7 @@ async def detect_cards(
 
     filename = file.filename or "uploaded_image"
 
-    cards = vision_service.detect_cards(
+    cards = vision_adapter.detect_cards(
         image_bytes=image_bytes,
         filename=filename,
     )

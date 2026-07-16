@@ -1,7 +1,7 @@
 from fastapi import APIRouter, HTTPException, status
 
 from app.schemas.readings import ReadingRequest, ReadingResponse
-from app.services.agent_service import tarot_agent
+from app.adapters.agent_adapter import agent_adapter
 
 
 router = APIRouter(prefix="/api/readings", tags=["readings"])
@@ -39,4 +39,4 @@ def create_reading(request: ReadingRequest) -> ReadingResponse:
                 },
             )
 
-    return tarot_agent.generate_reading(request)
+    return agent_adapter.generate_reading(request)
