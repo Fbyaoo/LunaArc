@@ -107,3 +107,39 @@ def test_reject_unsupported_image_type() -> None:
         response.json()["detail"]["error_code"]
         == "UNSUPPORTED_IMAGE_TYPE"
     )
+
+def test_detect_no_card():
+    response = client.post(
+        "/api/detect",
+        files={
+            "file": (
+                "none.jpg",
+                b"fake image",
+                "image/jpeg",
+            )
+        },
+    )
+
+    assert response.status_code == 200
+    assert response.json()["cards"] == []
+
+
+def test_detect_multiple_cards():
+    response = client.post(
+        "/api/detect",
+        files={
+            "file": (
+                "multi.jpg",
+                b"fake image",
+                "image/jpeg",
+            )
+        },
+    )
+
+    assert response.status_code == 200
+
+    cards = response.json()["cards"]
+
+    assert len(cards) == 2
+    assert cards[0]["card_id"] == "major_00"
+    assert cards[1]["card_id"] == "major_01"
