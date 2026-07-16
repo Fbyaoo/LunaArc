@@ -1,6 +1,6 @@
 from functools import lru_cache
 
-from pydantic_settings import BaseSettings
+from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
 class Settings(BaseSettings):
@@ -18,8 +18,9 @@ class Settings(BaseSettings):
 
     agent_api_key: str = ""
 
-    class Config:
-        env_file = ".env"
+    model_config = SettingsConfigDict(
+        env_file=".env"
+    )
 
 
 @lru_cache
