@@ -13,18 +13,10 @@ DATA_FILE = (
 
 POSITION_MAP = {
 
-    "daily_card": [
-        "daily_guidance"
-    ],
-
-    "single_card": [
-        "core"
-    ],
-
     "three_card": [
-        "past",
-        "present",
-        "future",
+        1,
+        2,
+        3,
     ],
 }
 
@@ -90,7 +82,7 @@ class DrawService:
                     "name_en":
                         card["name_en"],
 
-                    "position":
+                    "position_number":
                         position,
 
                     "orientation":

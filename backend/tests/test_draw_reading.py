@@ -6,12 +6,13 @@ from app.main import app
 client = TestClient(app)
 
 
-def test_three_draw():
+def test_draw_and_read():
 
     response = client.post(
-        "/api/draw",
+        "/api/draw-and-read",
         json={
-            "spread_type": "three_card"
+            "question": "我适合接受这份实习吗？",
+            "spread_type": "three_card",
         },
     )
 
@@ -19,6 +20,9 @@ def test_three_draw():
 
     data = response.json()
 
-    assert data["spread_type"] == "three_card"
-
     assert len(data["cards"]) == 3
+
+    assert (
+        data["reading"]["status"]
+        == "success"
+    )

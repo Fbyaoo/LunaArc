@@ -3,11 +3,7 @@ from typing import Literal
 from pydantic import BaseModel
 
 
-SpreadType = Literal[
-    "daily_card",
-    "single_card",
-    "three_card",
-]
+SpreadType = Literal["three_card"]
 
 Orientation = Literal[
     "upright",
@@ -15,23 +11,25 @@ Orientation = Literal[
 ]
 
 
-# 前端提交的数据
 class DrawnCard(BaseModel):
+
     card_id: str
+
     name_zh: str
-    position: str
+
+    position_number: int
+
     orientation: Orientation
 
 
-# 后端补充牌义后的数据
-# 提供给 Agent
+
 class EnrichedCard(BaseModel):
 
     card_id: str
 
     name_zh: str
 
-    position: str
+    position_number: int
 
     orientation: Orientation
 
@@ -42,8 +40,10 @@ class EnrichedCard(BaseModel):
     reversed_keywords: list[str]
 
 
+
 class ReadingRequest(BaseModel):
-    question: str | None = None
+
+    question: str
 
     spread_type: SpreadType
 
@@ -56,8 +56,6 @@ class ReadingRequest(BaseModel):
 class CardReading(BaseModel):
 
     card_id: str
-
-    position: str
 
     interpretation: str
 

@@ -2,6 +2,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from app.api.gesture import router as gesture_router
 from app.api.draw import router as draw_router
+from app.api.draw_reading import router as draw_reading_router
 
 from app.api.cards import router as cards_router
 from app.api.detection import router as detection_router
@@ -33,6 +34,7 @@ app.include_router(readings_router)
 app.include_router(history_router)
 app.include_router(gesture_router)
 app.include_router(draw_router)
+app.include_router(draw_reading_router)
 
 @app.get("/api/health")
 def health_check() -> dict[str, str]:

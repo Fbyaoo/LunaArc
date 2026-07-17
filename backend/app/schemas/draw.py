@@ -3,11 +3,7 @@ from typing import Literal
 from pydantic import BaseModel
 
 
-SpreadType = Literal[
-    "daily_card",
-    "single_card",
-    "three_card",
-]
+SpreadType = Literal["three_card"]
 
 
 class DrawRequest(BaseModel):
@@ -23,7 +19,7 @@ class DrawnCardResponse(BaseModel):
 
     name_en: str
 
-    position: str
+    position_number: int
 
     orientation: str
 

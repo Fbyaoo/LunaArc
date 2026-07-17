@@ -50,7 +50,6 @@ class TarotAgent:
             card_readings.append(
                 CardReading(
                     card_id=card["card_id"],
-                    position=card["position"],
                     interpretation=interpretation,
                 )
             )
