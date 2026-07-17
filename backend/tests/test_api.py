@@ -160,3 +160,35 @@ def test_detect_multiple_cards():
     assert len(cards) == 2
     assert cards[0]["card_id"] == "major_00"
     assert cards[1]["card_id"] == "major_01"
+
+def test_reading_contains_tarot_context():
+    response = client.post(
+        "/api/readings",
+        json={
+            "question": "我是否适合开始新的尝试？",
+            "spread_type": "single_card",
+            "cards": [
+                {
+                    "card_id": "major_00",
+                    "name_zh": "愚者",
+                    "position": "core",
+                    "orientation": "upright",
+                }
+            ],
+            "user_history": None,
+        },
+    )
+
+    assert response.status_code == 200
+
+    result = response.json()
+
+    assert result["status"] == "success"
+
+    interpretation = (
+        result["card_readings"][0]["interpretation"]
+    )
+
+    # 验证 Agent 收到了 tarot_cards.json 的信息
+    assert "开始" in interpretation
+    assert "冒险" in interpretation
