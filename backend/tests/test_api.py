@@ -19,9 +19,26 @@ def test_get_cards() -> None:
     assert response.status_code == 200
 
     cards = response.json()
-    assert len(cards) == 3
+
+    # 大阿尔卡纳共22张
+    assert len(cards) == 22
+
+    # 第一张：愚者
     assert cards[0]["card_id"] == "major_00"
+    assert cards[0]["class_id"] == 0
     assert cards[0]["name_zh"] == "愚者"
+    assert cards[0]["arcana"] == "major"
+
+    assert cards[0]["core_symbolism"] == [
+        "开始",
+        "冒险",
+        "自由",
+        "未知"
+    ]
+    # 最后一张：世界
+    assert cards[-1]["card_id"] == "major_21"
+    assert cards[-1]["class_id"] == 21
+    assert cards[-1]["name_zh"] == "世界"
 
 
 def test_create_single_card_reading() -> None:
