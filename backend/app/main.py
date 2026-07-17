@@ -4,6 +4,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from app.api.cards import router as cards_router
 from app.api.detection import router as detection_router
 from app.api.readings import router as readings_router
+from app.api.history import router as history_router
 from app.config.settings import get_settings
 
 
@@ -27,6 +28,7 @@ app.add_middleware(
 app.include_router(cards_router)
 app.include_router(detection_router)
 app.include_router(readings_router)
+app.include_router(history_router)
 
 
 @app.get("/api/health")
