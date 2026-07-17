@@ -1,0 +1,527 @@
+[
+  {
+    "card_id": "major_00",
+    "class_id": 0,
+    "name_en": "The Fool",
+    "name_zh": "愚者",
+    "arcana": "major",
+    "image": "/cards/major_00.png",
+    "upright_keywords": [
+      "开始",
+      "冒险",
+      "自由"
+    ],
+    "reversed_keywords": [
+      "冲动",
+      "犹豫",
+      "准备不足"
+    ],
+    "core_symbolism": [
+      "开始",
+      "冒险",
+      "自由",
+      "未知"
+    ]
+  },
+  {
+    "card_id": "major_01",
+    "class_id": 1,
+    "name_en": "The Magician",
+    "name_zh": "魔术师",
+    "arcana": "major",
+    "image": "/cards/major_01.png",
+    "upright_keywords": [
+      "创造",
+      "行动",
+      "资源"
+    ],
+    "reversed_keywords": [
+      "欺骗",
+      "浪费",
+      "方向不明"
+    ],
+    "core_symbolism": [
+      "创造",
+      "行动",
+      "资源",
+      "潜能"
+    ]
+  },
+  {
+    "card_id": "major_02",
+    "class_id": 2,
+    "name_en": "The High Priestess",
+    "name_zh": "女祭司",
+    "arcana": "major",
+    "image": "/cards/major_02.png",
+    "upright_keywords": [
+      "直觉",
+      "智慧",
+      "潜意识"
+    ],
+    "reversed_keywords": [
+      "隐藏",
+      "迷茫",
+      "忽视直觉"
+    ],
+    "core_symbolism": [
+      "直觉",
+      "智慧",
+      "潜意识",
+      "神秘"
+    ]
+  },
+  {
+    "card_id": "major_03",
+    "class_id": 3,
+    "name_en": "The Empress",
+    "name_zh": "皇后",
+    "arcana": "major",
+    "image": "/cards/major_03.png",
+    "upright_keywords": [
+      "丰盛",
+      "创造",
+      "成长"
+    ],
+    "reversed_keywords": [
+      "停滞",
+      "依赖",
+      "缺乏滋养"
+    ],
+    "core_symbolism": [
+      "丰盛",
+      "创造",
+      "成长",
+      "滋养"
+    ]
+  },
+  {
+    "card_id": "major_04",
+    "class_id": 4,
+    "name_en": "The Emperor",
+    "name_zh": "皇帝",
+    "arcana": "major",
+    "image": "/cards/major_04.png",
+    "upright_keywords": [
+      "权威",
+      "秩序",
+      "稳定"
+    ],
+    "reversed_keywords": [
+      "控制",
+      "僵化",
+      "压迫"
+    ],
+    "core_symbolism": [
+      "权威",
+      "秩序",
+      "稳定",
+      "领导"
+    ]
+  },
+  {
+    "card_id": "major_05",
+    "class_id": 5,
+    "name_en": "The Hierophant",
+    "name_zh": "教皇",
+    "arcana": "major",
+    "image": "/cards/major_05.png",
+    "upright_keywords": [
+      "传统",
+      "信仰",
+      "指导"
+    ],
+    "reversed_keywords": [
+      "限制",
+      "质疑",
+      "固守"
+    ],
+    "core_symbolism": [
+      "传统",
+      "信仰",
+      "学习",
+      "指导"
+    ]
+  },
+  {
+    "card_id": "major_06",
+    "class_id": 6,
+    "name_en": "The Lovers",
+    "name_zh": "恋人",
+    "arcana": "major",
+    "image": "/cards/major_06.png",
+    "upright_keywords": [
+      "爱情",
+      "选择",
+      "关系"
+    ],
+    "reversed_keywords": [
+      "冲突",
+      "分离",
+      "犹豫"
+    ],
+    "core_symbolism": [
+      "爱情",
+      "选择",
+      "关系",
+      "连接"
+    ]
+  },
+  {
+    "card_id": "major_07",
+    "class_id": 7,
+    "name_en": "The Chariot",
+    "name_zh": "战车",
+    "arcana": "major",
+    "image": "/cards/major_07.png",
+    "upright_keywords": [
+      "意志",
+      "胜利",
+      "目标"
+    ],
+    "reversed_keywords": [
+      "失控",
+      "阻碍",
+      "方向错误"
+    ],
+    "core_symbolism": [
+      "意志",
+      "胜利",
+      "方向",
+      "行动"
+    ]
+  },
+  {
+    "card_id": "major_08",
+    "class_id": 8,
+    "name_en": "Strength",
+    "name_zh": "力量",
+    "arcana": "major",
+    "image": "/cards/major_08.png",
+    "upright_keywords": [
+      "勇气",
+      "耐心",
+      "自控"
+    ],
+    "reversed_keywords": [
+      "怀疑",
+      "软弱",
+      "失衡"
+    ],
+    "core_symbolism": [
+      "勇气",
+      "耐心",
+      "内在力量",
+      "自控"
+    ]
+  },
+  {
+    "card_id": "major_09",
+    "class_id": 9,
+    "name_en": "The Hermit",
+    "name_zh": "隐士",
+    "arcana": "major",
+    "image": "/cards/major_09.png",
+    "upright_keywords": [
+      "内省",
+      "智慧",
+      "寻找答案"
+    ],
+    "reversed_keywords": [
+      "孤立",
+      "逃避",
+      "封闭"
+    ],
+    "core_symbolism": [
+      "内省",
+      "智慧",
+      "寻找答案",
+      "独处"
+    ]
+  },
+  {
+    "card_id": "major_10",
+    "class_id": 10,
+    "name_en": "Wheel of Fortune",
+    "name_zh": "命运之轮",
+    "arcana": "major",
+    "image": "/cards/major_10.png",
+    "upright_keywords": [
+      "变化",
+      "机会",
+      "循环"
+    ],
+    "reversed_keywords": [
+      "延迟",
+      "阻碍",
+      "失衡"
+    ],
+    "core_symbolism": [
+      "变化",
+      "机会",
+      "循环",
+      "命运"
+    ]
+  },
+  {
+    "card_id": "major_11",
+    "class_id": 11,
+    "name_en": "Justice",
+    "name_zh": "正义",
+    "arcana": "major",
+    "image": "/cards/major_11.png",
+    "upright_keywords": [
+      "公平",
+      "因果",
+      "判断"
+    ],
+    "reversed_keywords": [
+      "偏见",
+      "不公",
+      "逃避"
+    ],
+    "core_symbolism": [
+      "公平",
+      "判断",
+      "责任",
+      "平衡"
+    ]
+  },
+  {
+    "card_id": "major_12",
+    "class_id": 12,
+    "name_en": "The Hanged Man",
+    "name_zh": "倒吊人",
+    "arcana": "major",
+    "image": "/cards/major_12.png",
+    "upright_keywords": [
+      "放下",
+      "暂停",
+      "换角度"
+    ],
+    "reversed_keywords": [
+      "拖延",
+      "抗拒",
+      "停滞"
+    ],
+    "core_symbolism": [
+      "暂停",
+      "牺牲",
+      "新视角",
+      "接受"
+    ]
+  },
+  {
+    "card_id": "major_13",
+    "class_id": 13,
+    "name_en": "Death",
+    "name_zh": "死神",
+    "arcana": "major",
+    "image": "/cards/major_13.png",
+    "upright_keywords": [
+      "结束",
+      "转变",
+      "重生"
+    ],
+    "reversed_keywords": [
+      "抗拒改变",
+      "停留过去"
+    ],
+    "core_symbolism": [
+      "结束",
+      "转变",
+      "重生",
+      "更新"
+    ]
+  },
+  {
+    "card_id": "major_14",
+    "class_id": 14,
+    "name_en": "Temperance",
+    "name_zh": "节制",
+    "arcana": "major",
+    "image": "/cards/major_14.png",
+    "upright_keywords": [
+      "平衡",
+      "融合",
+      "疗愈"
+    ],
+    "reversed_keywords": [
+      "失衡",
+      "冲突",
+      "过度"
+    ],
+    "core_symbolism": [
+      "平衡",
+      "融合",
+      "疗愈",
+      "协调"
+    ]
+  },
+  {
+    "card_id": "major_15",
+    "class_id": 15,
+    "name_en": "The Devil",
+    "name_zh": "恶魔",
+    "arcana": "major",
+    "image": "/cards/major_15.png",
+    "upright_keywords": [
+      "欲望",
+      "束缚",
+      "诱惑"
+    ],
+    "reversed_keywords": [
+      "释放",
+      "觉醒",
+      "摆脱"
+    ],
+    "core_symbolism": [
+      "欲望",
+      "束缚",
+      "诱惑",
+      "阴影"
+    ]
+  },
+  {
+    "card_id": "major_16",
+    "class_id": 16,
+    "name_en": "The Tower",
+    "name_zh": "高塔",
+    "arcana": "major",
+    "image": "/cards/major_16.png",
+    "upright_keywords": [
+      "突变",
+      "崩塌",
+      "觉醒"
+    ],
+    "reversed_keywords": [
+      "恐惧",
+      "逃避",
+      "延迟"
+    ],
+    "core_symbolism": [
+      "突破",
+      "冲击",
+      "觉醒",
+      "改变"
+    ]
+  },
+  {
+    "card_id": "major_17",
+    "class_id": 17,
+    "name_en": "The Star",
+    "name_zh": "星星",
+    "arcana": "major",
+    "image": "/cards/major_17.png",
+    "upright_keywords": [
+      "希望",
+      "治愈",
+      "梦想"
+    ],
+    "reversed_keywords": [
+      "失望",
+      "缺乏信心"
+    ],
+    "core_symbolism": [
+      "希望",
+      "疗愈",
+      "梦想",
+      "信念"
+    ]
+  },
+  {
+    "card_id": "major_18",
+    "class_id": 18,
+    "name_en": "The Moon",
+    "name_zh": "月亮",
+    "arcana": "major",
+    "image": "/cards/major_18.png",
+    "upright_keywords": [
+      "迷雾",
+      "幻想",
+      "未知"
+    ],
+    "reversed_keywords": [
+      "误解",
+      "焦虑",
+      "揭露"
+    ],
+    "core_symbolism": [
+      "未知",
+      "幻想",
+      "直觉",
+      "迷雾"
+    ]
+  },
+  {
+    "card_id": "major_19",
+    "class_id": 19,
+    "name_en": "The Sun",
+    "name_zh": "太阳",
+    "arcana": "major",
+    "image": "/cards/major_19.png",
+    "upright_keywords": [
+      "快乐",
+      "成功",
+      "光明"
+    ],
+    "reversed_keywords": [
+      "延迟",
+      "自信不足"
+    ],
+    "core_symbolism": [
+      "成功",
+      "快乐",
+      "光明",
+      "生命力"
+    ]
+  },
+  {
+    "card_id": "major_20",
+    "class_id": 20,
+    "name_en": "Judgement",
+    "name_zh": "审判",
+    "arcana": "major",
+    "image": "/cards/major_20.png",
+    "upright_keywords": [
+      "觉醒",
+      "重生",
+      "决定"
+    ],
+    "reversed_keywords": [
+      "逃避",
+      "犹豫",
+      "否认"
+    ],
+    "core_symbolism": [
+      "觉醒",
+      "审视",
+      "决定",
+      "重生"
+    ]
+  },
+  {
+    "card_id": "major_21",
+    "class_id": 21,
+    "name_en": "The World",
+    "name_zh": "世界",
+    "arcana": "major",
+    "image": "/cards/major_21.png",
+    "upright_keywords": [
+      "完成",
+      "圆满",
+      "新阶段"
+    ],
+    "reversed_keywords": [
+      "未完成",
+      "停滞",
+      "缺口"
+    ],
+    "core_symbolism": [
+      "完成",
+      "圆满",
+      "成功",
+      "新阶段"
+    ]
+  }
+]
