@@ -1,0 +1,657 @@
+"""塔罗牌 Agent — LangGraph 状态图驱动（LLM 自主决策）
+
+状态图流程:
+  analyze_intent → dispatch ─┬─ research → research_cards → interpret → self_reflect
+                             │                                        ┌─ pass ──────────→ synthesize → ... → END
+                             │    quality_gate ──┼─ refine_visual ────┤
+                             │                   ├─ refine_relevance ─┤──→ self_reflect（最多2轮）
+                             │                   ├─ refine_symbolism ─┤
+                             │                   └─ force ────────────→ synthesize
+                             ├─ clarify  → END
+                             └─ redirect → END
+"""
+
+import operator
+from dataclasses import dataclass
+from typing import Annotated, TypedDict
+
+from langchain_core.prompts import ChatPromptTemplate
+from langgraph.graph import StateGraph, END
+
+from .models import ReadingRequest, ReadingResponse, DrawnCard, CardReading  # noqa: F401
+from .safety import is_sensitive
+from .llm import make_llm, POSITION_LABEL
+from .interpreter import (
+    interpret_cards,
+    synthesize,
+    generate_summary,
+    generate_advice_list,
+    lookup_card_knowledge,
+)
+
+
+# ═══════════════════════════════════════════
+# 牌阵规划（Spread Planner）
+# ═══════════════════════════════════════════
+
+@dataclass
+class SpreadConfig:
+    """单次解读的牌阵配置"""
+    intent: str                              # 意图类别：relationship / career / self_growth / trend / general
+    positions: list[str]                     # 三个位置的中文语义描述
+    position_map: dict[str, str]             # {"past": "当前关系状态", ...}
+
+    def get_position_label(self, backend_position: str) -> str:
+        """根据后端 position 获取语义化的位置标签"""
+        return self.position_map.get(backend_position, backend_position)
+
+
+_SPREAD_CONFIGS: dict[str, SpreadConfig] = {
+    "relationship": SpreadConfig(
+        intent="relationship",
+        positions=["当前关系状态", "关系阻碍因素", "未来发展方向"],
+        position_map={"past": "当前关系状态", "present": "关系阻碍因素", "future": "未来发展方向"},
+    ),
+    "career": SpreadConfig(
+        intent="career",
+        positions=["当前工作状态", "潜在挑战", "发展方向"],
+        position_map={"past": "当前工作状态", "present": "潜在挑战", "future": "发展方向"},
+    ),
+    "self_growth": SpreadConfig(
+        intent="self_growth",
+        positions=["当前内心状态", "成长阻碍", "蜕变方向"],
+        position_map={"past": "当前内心状态", "present": "成长阻碍", "future": "蜕变方向"},
+    ),
+    "trend": SpreadConfig(
+        intent="trend",
+        positions=["过去", "现在", "未来"],
+        position_map={"past": "过去", "present": "现在", "future": "未来"},
+    ),
+    "general": SpreadConfig(
+        intent="general",
+        positions=["过去", "现在", "未来"],
+        position_map={"past": "过去", "present": "现在", "future": "未来"},
+    ),
+}
+
+
+_INTENT_CLASSIFY_PROMPT = (
+    "你是塔罗牌阵规划师。根据用户问题，判断其咨询类型，只回复一个分类词。\n"
+    "分类标准：\n"
+    "- relationship：涉及恋爱、婚姻、伴侣、感情、人际、家庭关系、友谊\n"
+    "- career：涉及工作、事业、职场、学业、面试、项目、创业\n"
+    "- self_growth：涉及自我探索、内在成长、情绪困扰、人生意义、性格、信心\n"
+    "- trend：涉及运势、趋势、未来发展、时间线预测、近期走向\n"
+    "- general：不属于以上任何类别的通用问题\n\n"
+    "用户问题：{question}\n"
+    "请只回复一个单词：relationship / career / self_growth / trend / general"
+)
+
+
+def classify_intent(question: str | None) -> str:
+    """LLM 语义分析：判断用户问题的咨询类型"""
+    if not question:
+        return "general"
+    llm = make_llm(64)
+    prompt = ChatPromptTemplate.from_messages([("user", "{input}")])
+    try:
+        resp = (prompt | llm).invoke({
+            "input": _INTENT_CLASSIFY_PROMPT.format(question=question)
+        })
+        result = resp.content.strip().lower()
+        for intent in ("relationship", "career", "self_growth", "trend", "general"):
+            if intent in result:
+                return intent
+        return "general"
+    except Exception:
+        return "general"
+
+
+def plan_spread(question: str | None) -> SpreadConfig:
+    """牌阵规划入口：分析用户意图 → 返回对应牌阵配置"""
+    intent = classify_intent(question)
+    return _SPREAD_CONFIGS.get(intent, _SPREAD_CONFIGS["general"])
+
+
+# ═══════════════════════════════════════════
+# Agent 决策逻辑 — 意图分析、路由、反思
+# ═══════════════════════════════════════════
+
+def analyze_intent(request: ReadingRequest) -> tuple[str, str]:
+    """Agent 自主分析用户真实意图后再解读
+
+    Returns:
+        (intent_description, intent_category)
+    """
+    if not request.question:
+        return ("用户未提出具体问题，需要通用运势解读", "general")
+    llm = make_llm(128)
+    cards_desc = "、".join(f"{c.name_zh}({c.position})" for c in request.cards)
+    system = "你善于洞察人心，一句话提炼用户提问背后的真实诉求（情绪/关系/事业/自我成长）。不超过30字。"
+    prompt_text = f"用户问题：{request.question}\n抽到的牌：{cards_desc}\n请概括用户真正想了解的核心议题："
+    prompt = ChatPromptTemplate.from_messages([("system", system), ("user", "{input}")])
+    try:
+        resp = (prompt | llm).invoke({"input": prompt_text})
+        intent_desc = resp.content.strip()
+    except Exception:
+        intent_desc = request.question
+    intent_category = classify_intent(request.question)
+    return (intent_desc, intent_category)
+
+
+# ── 路由决策 ──
+
+_DISPATCH_PROMPT = (
+    "你是塔罗解读 Agent 的调度员。根据用户问题和牌面，决定下一步行动。\n"
+    "判断标准：\n"
+    "- research：用户提出了与塔罗牌能回应的问题（情感、自我成长、人生选择、\n"
+    "  日常困惑、运势指引等），即使涉及健康/法律/投资也照常解读，\n"
+    "  后续会有专门的安全模块处理。\n"
+    "- clarify：问题过于模糊或宽泛，缺少足够上下文让你给出有意义的解读。\n"
+    "  例如「我怎么办」「帮帮我」且没有其他信息时。\n"
+    "- redirect：问题属于纯工具性请求，与塔罗解读完全无关。\n"
+    "  例如「帮我写代码」「翻译这段英文」「给我做饭谱」「解这道数学题」。\n\n"
+    "用户问题：{question}\n"
+    "抽到的牌：{cards}\n"
+    "请只回复一个单词：research / clarify / redirect"
+)
+
+
+def route_dispatch(question: str | None, cards_desc: str) -> str:
+    """Agent 自主决定：解读 / 追问 / 婉拒"""
+    if not question:
+        return "research"
+    llm = make_llm(64)
+    prompt = ChatPromptTemplate.from_messages([("user", "{input}")])
+    try:
+        resp = (prompt | llm).invoke({
+            "input": _DISPATCH_PROMPT.format(question=question, cards=cards_desc)
+        })
+        result = resp.content.strip().lower()
+        if "redirect" in result:
+            return "redirect"
+        if "clarify" in result:
+            return "clarify"
+        return "research"
+    except Exception:
+        return "research"
+
+
+def generate_clarify_question(request: ReadingRequest, intent: str) -> str:
+    """生成追问，引导用户下次抽牌前提出更具体的问题
+
+    注意：由于前后端未实现允许用户在原问题上追加细节的逻辑，
+    追问中不要提及本次已抽到的牌面信息，也不要让用户在现有问题上补充，
+    只温柔引导用户下次提问时更加具体。"""
+    llm = make_llm(200)
+    system = (
+        "你是一位温柔有耐心的塔罗师。用户的问题不够具体，塔罗无法给出有意义的解读。"
+        "请用一句话温和地告诉用户，建议ta在下次抽牌前提一个更具体的问题，"
+        "让解读更有针对性。不要提及本次已抽到的牌面信息，也不要让用户补充细节。不超过50字。"
+    )
+    prompt_text = (
+        f"用户问题：{request.question}\n"
+        f"你的初步理解：{intent}\n"
+        f"请用一句话温和引导用户下次提问时更具体一些。不超过50字。"
+    )
+    prompt = ChatPromptTemplate.from_messages([("system", system), ("user", "{input}")])
+    try:
+        resp = (prompt | llm).invoke({"input": prompt_text})
+        return resp.content.strip()
+    except Exception:
+        return "你的问题比较宽泛，下次抽牌时可以试着问得更具体一些，这样塔罗才能给你更有针对性的指引。"
+
+
+def generate_redirect_message(request: ReadingRequest) -> str:
+    """婉拒超出塔罗范围的问题"""
+    llm = make_llm(128)
+    system = "你是一位真诚而有边界感的塔罗师。用户的问题超出了你能回应的范围，请用一句话温柔说明你能做什么、不能做什么。"
+    prompt_text = (
+        f"用户问题：{request.question}\n"
+        f"请用一句话婉拒，不超过40字。语气温柔但明确。"
+    )
+    prompt = ChatPromptTemplate.from_messages([("system", system), ("user", "{input}")])
+    try:
+        resp = (prompt | llm).invoke({"input": prompt_text})
+        return resp.content.strip()
+    except Exception:
+        return "塔罗更擅长探索内心和人生方向，这个问题我可能帮不上忙。"
+
+
+# ── 自我反思 ──
+
+_SELF_REFLECT_PROMPT = (
+    "你是塔罗解读的质量审核员。请从三个维度审视以下解读（1-5分）：\n"
+    "① 画面描绘力：是否生动描绘了牌面细节（人物、动作、色彩、氛围）？\n"
+    "② 启示相关性：启示是否紧密结合了用户问题与牌的位置含义？\n"
+    "③ 牌义融合度：是否巧妙融入了牌的传统含义？\n\n"
+    "解读内容：\n{content}\n\n"
+    "如果三项均≥4分，回复 PASS。否则回复 REVISE，并指出最需要改进的维度和一句话修改建议。"
+)
+
+
+def self_reflect(
+    readings: list[CardReading],
+    position_labels: dict[str, str] | None = None,
+) -> tuple[bool, str]:
+    """审视解读质量，返回 (是否通过, 反馈)"""
+    position_labels = position_labels or {}
+    lines = []
+    for r in readings:
+        label = position_labels.get(r.position, r.position)
+        lines.append(f"[{label}] {r.interpretation}")
+    all_text = "\n---\n".join(lines)
+    llm = make_llm(200)
+    prompt = ChatPromptTemplate.from_messages([("user", "{input}")])
+    try:
+        resp = (prompt | llm).invoke({"input": _SELF_REFLECT_PROMPT.format(content=all_text)})
+        result = resp.content.strip().upper()
+        return ("PASS" in result, resp.content.strip())
+    except Exception:
+        return (True, "")
+
+
+def refine_readings(
+    request: ReadingRequest,
+    readings: list[CardReading],
+    feedback: str,
+    position_labels: dict[str, str] | None = None,
+) -> list[CardReading]:
+    """根据反思反馈修正解读"""
+    position_labels = position_labels or {}
+    refined: list[CardReading] = []
+    for i, reading in enumerate(readings):
+        card = request.cards[i] if i < len(request.cards) else request.cards[0]
+        llm = make_llm(512)
+        rev = "逆位" if card.orientation == "reversed" else "正位"
+        pos_label = position_labels.get(card.position) or POSITION_LABEL.get(card.position, card.position)
+        system = "你是一位精益求精的塔罗解读师，根据审核反馈修正解读，保持温柔诗意的风格。"
+        prompt_text = (
+            f"原解读：{reading.interpretation}\n"
+            f"审核反馈：{feedback}\n"
+            f"牌：{card.name_zh}（{rev}）位置：{pos_label}\n"
+            f"请根据反馈改进解读。用诗意的语言描绘牌面，自然过渡到启示。不要使用「我看到」「画面中」等字眼。不超过200字。"
+        )
+        prompt = ChatPromptTemplate.from_messages([("system", system), ("user", "{input}")])
+        try:
+            resp = (prompt | llm).invoke({"input": prompt_text})
+            refined.append(CardReading(card_id=reading.card_id, position=reading.position, interpretation=resp.content.strip()))
+        except Exception:
+            refined.append(reading)
+    return refined
+
+
+# ═══════════════════════════════════════════
+# Agent 状态（LangGraph StateGraph 用）
+# ═══════════════════════════════════════════
+
+class _AgentState(TypedDict):
+    request: ReadingRequest
+    is_sensitive: bool
+    intent: str
+    intent_category: str            # relationship / career / self_growth / trend / general
+    position_labels: dict[str, str] # 后端 position → 语义位置标签映射
+    spread_positions: list[str]     # 三张牌的位置语义列表
+    status: str  # "normal" | "needs_clarify" | "out_of_scope"
+    clarify_question: str
+    card_knowledge: Annotated[dict, operator.ior]
+    readings: list[CardReading]
+    synthesis: str | None
+    advice: list[str]
+    summary: str
+    reflect_count: int
+    reflect_feedback: str
+
+
+# ═══════════════════════════════════════════
+# 私有：图节点函数
+# ═══════════════════════════════════════════
+
+def _node_analyze_intent(state: _AgentState) -> dict:
+    """意图分析（始终执行）"""
+    intent_desc, intent_category = analyze_intent(state["request"])
+    return {"intent": intent_desc, "intent_category": intent_category}
+
+
+# ── 牌阵规划：根据意图生成位置语义 ──
+
+def _node_plan_spread(state: _AgentState) -> dict:
+    """根据用户问题语义分析意图类别，生成对应的牌阵位置语义配置"""
+    config: SpreadConfig = plan_spread(state["request"].question)
+    return {
+        "intent_category": config.intent,
+        "position_labels": config.position_map,
+        "spread_positions": config.positions,
+    }
+
+
+# ── 路由 ①：意图后分派 ──
+
+def _node_dispatch(state: _AgentState) -> dict:
+    """占位节点：实际路由由 _route_dispatch 完成"""
+    return {}
+
+
+def _route_dispatch(state: _AgentState) -> str:
+    """LLM 自主决策：解读 / 追问 / 婉拒（敏感内容强制走解读路径）"""
+    # 敏感内容（医疗/法律/投资）跳过 LLM 分派，交给下游 safety 标记
+    if state["is_sensitive"]:
+        return "research"
+    req = state["request"]
+    cards_desc = "、".join(f"{c.name_zh}({c.position})" for c in req.cards)
+    decision = route_dispatch(req.question, cards_desc)
+    return decision
+
+
+def _node_clarify(state: _AgentState) -> dict:
+    """生成追问：引导用户下次抽牌前提更具体的问题"""
+    q = generate_clarify_question(state["request"], state.get("intent", ""))
+    return {"status": "needs_clarify", "clarify_question": q}
+
+
+def _node_redirect(state: _AgentState) -> dict:
+    """婉拒超出范围的问题"""
+    msg = generate_redirect_message(state["request"])
+    return {"status": "out_of_scope", "summary": msg}
+
+
+# ── 解读主流程节点 ──
+
+def _node_research_cards(state: _AgentState) -> dict:
+    """工具调用：查牌义知识库"""
+    knowledge: dict[str, str] = {}
+    for card in state["request"].cards:
+        knowledge[card.card_id] = lookup_card_knowledge(card.card_id, card.orientation)
+    return {"card_knowledge": knowledge}
+
+
+def _node_interpret(state: _AgentState) -> dict:
+    """并行解读（融入意图 + 牌义知识 + 动态位置语义）"""
+    readings = interpret_cards(
+        state["request"],
+        intent=state.get("intent", ""),
+        knowledge_map=state.get("card_knowledge", {}),
+        position_labels=state.get("position_labels", {}),
+    )
+    return {"readings": readings}
+
+
+# ── 反思 + 质量关卡 ──
+
+_MAX_REFLECT_ROUNDS = 2
+
+_QUALITY_GATE_PROMPT = (
+    "你是塔罗解读的质量审核员。请从三个维度审视以下解读（1-5分）：\n"
+    "① 画面描绘力：是否生动描绘了牌面细节？\n"
+    "② 启示相关性：是否紧密结合用户问题与位置含义？\n"
+    "③ 牌义融合度：是否巧妙融入传统牌义？\n\n"
+    "解读内容：\n{content}\n\n"
+    "根据评分决定下一步，只回复一个关键词：\n"
+    "- pass：三项均≥4分，解读质量合格，可以进入综合阶段\n"
+    "- refine_visual：画面描绘力最低，需要重点改善画面细节描写\n"
+    "- refine_relevance：启示相关性最低，需要更紧密结合用户问题\n"
+    "- refine_symbolism：牌义融合度最低，需要更巧妙融入牌义\n"
+    "- force：已经修正过{rounds}轮仍达不到标准，放弃修正直接推进"
+)
+
+
+def _node_self_reflect(state: _AgentState) -> dict:
+    """自我反思：审视解读质量"""
+    if not state.get("readings"):
+        return {}
+    passed, feedback = self_reflect(
+        state["readings"],
+        position_labels=state.get("position_labels"),
+    )
+    if passed:
+        return {}
+    cnt = state.get("reflect_count", 0) + 1
+    return {"reflect_count": cnt, "reflect_feedback": feedback}
+
+
+def _route_quality_gate(state: _AgentState) -> str:
+    """LLM 自主决策：pass / 专项修正 / 放弃治疗"""
+    cnt = state.get("reflect_count", 0)
+    if cnt == 0 or cnt > _MAX_REFLECT_ROUNDS:
+        return "pass"
+    # LLM 决策
+    pos_labels = state.get("position_labels", {})
+    lines = []
+    for r in state["readings"]:
+        label = pos_labels.get(r.position, r.position)
+        lines.append(f"[{label}] {r.interpretation}")
+    all_text = "\n---\n".join(lines)
+    llm = make_llm(100)
+    prompt = ChatPromptTemplate.from_messages([("user", "{input}")])
+    try:
+        resp = (prompt | llm).invoke({
+            "input": _QUALITY_GATE_PROMPT.format(content=all_text, rounds=cnt)
+        })
+        decision = resp.content.strip().lower()
+        for key in ("refine_visual", "refine_relevance", "refine_symbolism"):
+            if key in decision:
+                return key
+        if "force" in decision:
+            return "force"
+        return "pass"
+    except Exception:
+        return "force" if cnt >= _MAX_REFLECT_ROUNDS else "pass"
+
+
+def _route_quality_decision(state: _AgentState) -> str:
+    """路由映射：pass/force → synthesize，其他 → 对应 refine 节点"""
+    decision = _route_quality_gate(state)
+    return decision
+
+
+# ── 专项修正节点 ──
+
+def _node_refine_visual(state: _AgentState) -> dict:
+    """专项修正：改善画面描绘"""
+    return _refine_with_focus(state, "画面描绘力不够生动。请重点改善：用诗意的语言直接描绘人物、色彩、动作、环境，不要使用「我看到」「画面中」等字眼，让读者仿佛置身其中。")
+
+
+def _node_refine_relevance(state: _AgentState) -> dict:
+    """专项修正：改善启示相关性"""
+    return _refine_with_focus(state, "启示与用户问题的关联不够紧密。请重点改善：结合牌的位置含义，让启示直接回应用户的困惑。")
+
+
+def _node_refine_symbolism(state: _AgentState) -> dict:
+    """专项修正：改善牌义融合"""
+    return _refine_with_focus(state, "牌义融合度不够。请重点改善：把牌的传统象征意义（如元素、数字、符号）更自然地融入解读中。")
+
+
+def _refine_with_focus(state: _AgentState, focus: str) -> dict:
+    """根据指定焦点修正解读"""
+    pos_labels = state.get("position_labels", {})
+    refined: list[CardReading] = []
+    for i, reading in enumerate(state["readings"]):
+        card = state["request"].cards[i] if i < len(state["request"].cards) else state["request"].cards[0]
+        llm = make_llm(512)
+        rev = "逆位" if card.orientation == "reversed" else "正位"
+        pos_label = pos_labels.get(card.position) or POSITION_LABEL.get(card.position, card.position)
+        system = "你是一位精益求精的塔罗解读师，根据指定的改进方向修正解读。"
+        prompt_text = (
+            f"原解读：{reading.interpretation}\n"
+            f"改进方向：{focus}\n"
+            f"牌：{card.name_zh}（{rev}）位置：{pos_label}\n"
+            f"请重新生成解读。不超过200字。"
+        )
+        prompt = ChatPromptTemplate.from_messages([("system", system), ("user", "{input}")])
+        try:
+            resp = (prompt | llm).invoke({"input": prompt_text})
+            refined.append(CardReading(
+                card_id=reading.card_id, position=reading.position,
+                interpretation=resp.content.strip(),
+            ))
+        except Exception:
+            refined.append(reading)
+    return {"readings": refined}
+
+
+def _node_synthesize(state: _AgentState) -> dict:
+    req = state["request"]
+    syn = synthesize(
+        req.spread_type, req.question, state["readings"],
+        state["is_sensitive"],
+        position_labels=state.get("position_labels"),
+    )
+    return {"synthesis": syn}
+
+
+def _node_gen_advice(state: _AgentState) -> dict:
+    req = state["request"]
+    readings = state["readings"]
+    if not readings:
+        return {"advice": ["保持冷静，关注当下。"]}
+    adv = generate_advice_list(
+        req.spread_type, req.question, req.cards,
+        readings, state.get("synthesis"), state["is_sensitive"],
+        position_labels=state.get("position_labels"),
+    )
+    return {"advice": adv}
+
+
+def _node_gen_summary(state: _AgentState) -> dict:
+    req = state["request"]
+    readings = state["readings"]
+    if not readings:
+        return {"summary": "静观其变"}
+    sum_text = generate_summary(req.spread_type, req.question, readings, state.get("synthesis"))
+    if state["is_sensitive"]:
+        sum_text = f"塔罗映照内心，但无法替代专业判断。{sum_text}"
+    return {"summary": sum_text}
+
+
+# ═══════════════════════════════════════════
+# TarotAgent — 统一入口
+# ═══════════════════════════════════════════
+
+class TarotAgent:
+    """塔罗解读智能体（LangGraph 状态图驱动）
+
+    使用方式:
+        from agent.tarot_agent import TarotAgent
+        agent = TarotAgent()
+        result = agent.generate_reading(request)
+    """
+
+    def __init__(self):
+        self._graph = self._build_graph()
+
+    def _build_graph(self) -> StateGraph:
+        builder = StateGraph(_AgentState)
+
+        # ── 注册所有节点 ──
+        builder.add_node("analyze_intent", _node_analyze_intent)
+        builder.add_node("plan_spread", _node_plan_spread)
+        builder.add_node("dispatch", _node_dispatch)
+        builder.add_node("clarify", _node_clarify)
+        builder.add_node("redirect", _node_redirect)
+        builder.add_node("research_cards", _node_research_cards)
+        builder.add_node("interpret", _node_interpret)
+        builder.add_node("self_reflect", _node_self_reflect)
+        builder.add_node("refine_visual", _node_refine_visual)
+        builder.add_node("refine_relevance", _node_refine_relevance)
+        builder.add_node("refine_symbolism", _node_refine_symbolism)
+        builder.add_node("synthesize", _node_synthesize)
+        builder.add_node("gen_advice", _node_gen_advice)
+        builder.add_node("gen_summary", _node_gen_summary)
+
+        # ── 入口 → 意图分析 → 牌阵规划 → 分派（LLM 决策） ──
+        builder.set_entry_point("analyze_intent")
+        builder.add_edge("analyze_intent", "plan_spread")
+        builder.add_edge("plan_spread", "dispatch")
+        builder.add_conditional_edges(
+            "dispatch",
+            _route_dispatch,
+            {
+                "research": "research_cards",
+                "clarify": "clarify",
+                "redirect": "redirect",
+            },
+        )
+        builder.add_edge("clarify", END)
+        builder.add_edge("redirect", END)
+
+        # ── 解读主流程 ──
+        builder.add_edge("research_cards", "interpret")
+        builder.add_edge("interpret", "self_reflect")
+
+        # ── 质量关卡 → 专项修正或推进（LLM 决策） ──
+        builder.add_conditional_edges(
+            "self_reflect",
+            _route_quality_decision,
+            {
+                "pass": "synthesize",
+                "force": "synthesize",
+                "refine_visual": "refine_visual",
+                "refine_relevance": "refine_relevance",
+                "refine_symbolism": "refine_symbolism",
+            },
+        )
+        # 专项修正后回到反思
+        builder.add_edge("refine_visual", "self_reflect")
+        builder.add_edge("refine_relevance", "self_reflect")
+        builder.add_edge("refine_symbolism", "self_reflect")
+
+        # ── 后半段 ──
+        builder.add_edge("synthesize", "gen_advice")
+        builder.add_edge("gen_advice", "gen_summary")
+        builder.add_edge("gen_summary", END)
+
+        return builder.compile()
+
+    def generate_reading(self, request: ReadingRequest) -> ReadingResponse:
+        initial: _AgentState = {
+            "request": request,
+            "is_sensitive": is_sensitive(request.question),
+            "intent": "",
+            "intent_category": "",
+            "position_labels": {},
+            "spread_positions": [],
+            "status": "normal",
+            "clarify_question": "",
+            "card_knowledge": {},
+            "readings": [],
+            "synthesis": None,
+            "advice": [],
+            "summary": "",
+            "reflect_count": 0,
+            "reflect_feedback": "",
+        }
+        result = self._graph.invoke(initial)
+
+        # ── 澄清路径：返回追问 ──
+        if result.get("status") == "needs_clarify":
+            return ReadingResponse(
+                status="success",
+                summary=result.get("clarify_question", "能否再多说一些？"),
+                card_readings=[],
+                advice=[],
+            )
+
+        # ── 婉拒路径 ──
+        if result.get("status") == "out_of_scope":
+            return ReadingResponse(
+                status="success",
+                summary=result.get("summary", "这个问题不在我的能力范围内。"),
+                card_readings=[],
+                advice=[],
+            )
+
+        # ── 正常解读路径 ──
+        if not result.get("readings"):
+            return ReadingResponse(
+                status="success",
+                summary="暂时无法解读，请稍后重试。",
+                card_readings=[],
+                advice=["稍等片刻，再试一次。"],
+            )
+        return ReadingResponse(
+            status="success",
+            summary=result["summary"],
+            card_readings=result["readings"],
+            synthesis=result.get("synthesis"),
+            advice=result["advice"],
+        )
