@@ -50,7 +50,7 @@ def enrich_card(
     return EnrichedCard(
         card_id=card.card_id,
         name_zh=target["name_zh"],
-        position_number=card.position_number,
+        position=card.position,
         orientation=card.orientation,
         core_symbolism=target["core_symbolism"],
         upright_keywords=target["upright_keywords"],

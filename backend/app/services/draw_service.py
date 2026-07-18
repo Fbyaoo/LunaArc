@@ -14,9 +14,9 @@ DATA_FILE = (
 POSITION_MAP = {
 
     "three_card": [
-        1,
-        2,
-        3,
+        "past",
+        "present",
+        "future",
     ],
 }
 
@@ -82,7 +82,7 @@ class DrawService:
                     "name_en":
                         card["name_en"],
 
-                    "position_number":
+                    "position":
                         position,
 
                     "orientation":

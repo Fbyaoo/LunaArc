@@ -28,7 +28,7 @@ class DrawReadingService:
             DrawnCard(
                 card_id=card["card_id"],
                 name_zh=card["name_zh"],
-                position_number=card["position_number"],
+                position=card["position"],
                 orientation=card["orientation"],
             )
             for card in cards

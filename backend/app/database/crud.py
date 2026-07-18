@@ -37,7 +37,7 @@ def create_cards(
         item = DrawnCard(
             session_id=session_id,
             card_id=card.card_id,
-            position=str(card.position_number),
+            position=card.position,
             orientation=card.orientation,
         )
 

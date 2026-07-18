@@ -12,19 +12,19 @@ def three_cards():
         {
             "card_id": "major_00",
             "name_zh": "愚者",
-            "position_number": 1,
+            "position": "past",
             "orientation": "upright",
         },
         {
             "card_id": "major_01",
             "name_zh": "魔术师",
-            "position_number": 2,
+            "position": "present",
             "orientation": "upright",
         },
         {
             "card_id": "major_02",
             "name_zh": "女祭司",
-            "position_number": 3,
+            "position": "future",
             "orientation": "upright",
         },
     ]
@@ -58,7 +58,7 @@ def test_reject_incomplete_draw():
                 {
                     "card_id": "major_00",
                     "name_zh": "愚者",
-                    "position_number": 1,
+                    "position": "past",
                     "orientation": "upright",
                 }
             ],
