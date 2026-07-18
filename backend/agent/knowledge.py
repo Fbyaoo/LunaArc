@@ -1,10 +1,4 @@
-"""塔罗知识库 — 22张大阿卡那牌的牌义关键词与画面描述
-
-包含两部分数据：
-  - 牌义关键词：正位/逆位的核心含义
-  - 画面描述：韦特塔罗牌面的详细画面描述，供解读时注入 prompt，
-    让 LLM 基于准确画面信息描述牌面，避免幻觉。
-"""
+"""塔罗知识库 — 22张大阿卡那的牌义关键词与画面描述"""
 
 # ═══════════════════════════════════════════
 # 牌义关键词
@@ -71,15 +65,6 @@ _TAROT_IMAGERY: dict[str, str] = {
 # ═══════════════════════════════════════════
 
 def lookup_card_meaning(card_id: str, orientation: str) -> str:
-    """查牌义关键词
-
-    Args:
-        card_id: 牌的 ID，如 major_00
-        orientation: "upright" 或 "reversed"
-
-    Returns:
-        格式化的牌义字符串
-    """
     info = _TAROT_MEANINGS.get(card_id)
     if not info:
         return f"（暂无 {card_id} 的牌义）"
@@ -88,12 +73,4 @@ def lookup_card_meaning(card_id: str, orientation: str) -> str:
 
 
 def lookup_card_imagery(card_id: str) -> str:
-    """查牌面画面描述
-
-    Args:
-        card_id: 牌的 ID，如 major_00
-
-    Returns:
-        该牌的画面描述文字，若未找到则返回空字符串
-    """
     return _TAROT_IMAGERY.get(card_id, "")

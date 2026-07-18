@@ -1,4 +1,4 @@
-"""安全模块 — 敏感内容检测（LLM 语义分类）"""
+"""安全模块 — 敏感内容检测"""
 
 from langchain_core.prompts import ChatPromptTemplate
 
@@ -6,10 +6,6 @@ from .llm import make_llm
 
 
 def is_sensitive(question: str | None) -> bool:
-    """LLM 判断：用户是否在寻求医疗、法律、投资等专业领域的实质性建议
-
-    只输出 SENSITIVE 或 SAFE，不解释。LLM 失败时默认判定为敏感（宁严勿松）。
-    """
     if not question:
         return False
     llm = make_llm(64)
