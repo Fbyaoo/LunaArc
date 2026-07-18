@@ -1,7 +1,10 @@
 from fastapi import APIRouter, HTTPException, status
 
 from app.schemas.readings import ReadingRequest, ReadingResponse
-from app.adapters.agent_adapter import agent_adapter
+from app.adapters.agent_adapter import (
+    AgentIntegrationError,
+    agent_adapter,
+)
 
 from app.database.connection import SessionLocal
 from app.database.crud import (
@@ -62,9 +65,26 @@ def create_reading_api(
 
 
     # 1. 调用 Agent
-    result = agent_adapter.generate_reading(
-        request
-    )
+    try:
+        result = agent_adapter.generate_reading(
+            request
+        )
+    except ValueError as error:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail={
+                "error_code": "INVALID_AGENT_REQUEST",
+                "message": str(error),
+            },
+        ) from error
+    except AgentIntegrationError as error:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail={
+                "error_code": "AGENT_UNAVAILABLE",
+                "message": str(error),
+            },
+        ) from error
 
 
     # 2. 保存数据库

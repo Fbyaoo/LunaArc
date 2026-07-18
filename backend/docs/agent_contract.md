@@ -1,477 +1,188 @@
 # Agent 对接协议
 
-## 1. 调用方式
+## 1. 唯一入口
 
-第一版 Agent 与后端在同一个 Python 项目中运行。
+后端只调用：
 
-Agent 对后端只暴露一个统一入口：
+~~~python
+from agent.tarot_agent import (
+    TarotAgent,
+    ReadingRequest,
+    DrawnCard,
+)
 
-```python
-class TarotAgent:
+agent = TarotAgent()
+result = agent.generate_reading(request)
+~~~
 
-    def generate_reading(
-        self,
-        request: ReadingRequest,
-    ) -> ReadingResponse:
-        ...
-```
+Agent 不负责 HTTP、FastAPI、数据库、CORS 和前端展示。
 
-后端负责：
+## 2. 后端请求结构
 
-- HTTP 接口；
-- 参数校验；
-- 数据库保存；
-- 错误处理；
-- 前端接口。
-
-
-Agent 负责：
-
-- 理解用户问题；
-- 分析塔罗牌信息；
-- 判断三张牌之间的关系；
-- 生成自然语言解读。
-
-
----
-
-# 2. 系统职责划分
-
-整体流程：
-
-```
-Frontend
-
-↓
-
-Backend
-
-↓
-
-Draw Service
-抽取三张牌
-
-↓
-
-Tarot Service
-补充牌义信息
-
-↓
-
-Agent
-
-↓
-
-Reading Result
-
-↓
-
-Database
-```
-
----
-
-# 3. Backend 提供给 Agent 的信息
-
-Backend 不负责决定解读方式。
-
-Backend 只提供事实信息：
-
-包括：
-
-- 用户问题；
-- 三牌阵类型；
-- 三张牌信息；
-- 每张牌基础牌义；
-- 用户历史记录（可选）。
-
-
-Agent 根据这些信息自主决定：
-
-- 如何理解问题；
-- 如何组织三张牌关系；
-- 如何生成回答结构。
-
----
-
-# 4. Request Structure
-
-## DrawnCard
-
-```python
+~~~python
 class DrawnCard(BaseModel):
-
     card_id: str
-
     name_zh: str
-
-    position_number: int
-
-    orientation: Literal[
-        "upright",
-        "reversed"
-    ]
-```
-
-字段说明：
-
-|字段|说明|
-|-|-|
-|card_id|塔罗牌唯一 ID|
-|name_zh|中文名称|
-|position_number|第几张牌|
-|orientation|正位/逆位|
+    position: str
+    orientation: Literal["upright", "reversed"]
 
 
-注意：
-
-Backend 使用：
-
-```
-position_number
-```
-
-表示：
-
-```
-第1张
-第2张
-第3张
-```
-
-不使用：
-
-```
-past
-present
-future
-```
-
-因为牌位解释由 Agent 决定。
-
----
-
-## ReadingRequest
-
-```python
 class ReadingRequest(BaseModel):
-
-    question: str
-
+    question: str | None = None
     spread_type: Literal[
-        "three_card"
+        "daily_card",
+        "single_card",
+        "three_card",
     ]
-
     cards: list[DrawnCard]
-
     user_history: list[dict] | None = None
-```
+~~~
 
----
+## 3. 三牌请求示例
 
-# 5. Request Example
-
-```json
+~~~json
 {
-  "question": "我是否适合接受这份实习？",
-
+  "question": "最近工作发展如何？",
   "spread_type": "three_card",
-
   "cards": [
     {
-      "card_id": "major_00",
-      "name_zh": "愚者",
-      "position_number": 1,
-      "orientation": "upright"
-    },
-    {
-      "card_id": "major_01",
-      "name_zh": "魔术师",
-      "position_number": 2,
+      "card_id": "major_07",
+      "name_zh": "战车",
+      "position": "past",
       "orientation": "reversed"
     },
     {
-      "card_id": "major_02",
-      "name_zh": "女祭司",
-      "position_number": 3,
+      "card_id": "major_17",
+      "name_zh": "星星",
+      "position": "present",
+      "orientation": "upright"
+    },
+    {
+      "card_id": "major_19",
+      "name_zh": "太阳",
+      "position": "future",
       "orientation": "upright"
     }
   ],
-
   "user_history": null
 }
-```
+~~~
 
----
+`position` 只是三张牌的区分标识。
 
-# 6. Card Metadata
+当前后端可以传：
 
-Backend 会额外提供完整牌义信息。
+~~~text
+past
+present
+future
+~~~
 
-示例：
+Agent 内部的 Spread Planner 会根据用户意图，把这些标识转换成语义化位置，例如：
 
-```json
-{
-  "card_id": "major_00",
+~~~text
+当前工作状态
+潜在挑战
+发展方向
+~~~
 
-  "name_zh": "愚者",
-
-  "orientation": "upright",
-
-  "core_symbolism": [
-    "开始",
-    "冒险",
-    "自由",
-    "未知"
-  ],
-
-  "upright_keywords": [
-    "探索",
-    "机会"
-  ],
-
-  "reversed_keywords": [
-    "冲动",
-    "准备不足"
-  ]
-}
-```
-
-Agent 不需要维护自己的塔罗牌库。
-
----
-
-# 7. Three Card Rule
-
-当前 MVP 固定：
-
-```
-spread_type = three_card
-```
-
-表示：
-
-```
-三张牌解读
-```
-
-Backend 保证：
-
-- 一定返回三张牌；
-- 每张牌包含完整信息。
-
-
-Agent 自主决定：
-
-例如：
-
-## 方案 1
-
-```
-过去
-现在
-未来
-```
-
-或者：
-
-## 方案 2
-
-```
-情况
-挑战
-建议
-```
-
-或者：
-
-## 方案 3
-
-```
-优势
-阻碍
-机会
-```
-
-
-Backend 不限制具体解释模板。
-
----
-
-# 8. Response Structure
-
-```python
-class CardReading(BaseModel):
-
-    card_id: str
-
-    interpretation: str
-
-
-
-class ReadingResponse(BaseModel):
-
-    status: Literal["success"]
-
-    summary: str
-
-    card_readings: list[CardReading]
-
-    synthesis: str | None = None
-
-    advice: list[str]
-```
-
----
-
-# 9. Response Example
-
-```json
-{
-  "status": "success",
-
-  "summary":
-  "整体趋势显示这是一个需要谨慎评估的新机会。",
-
-  "card_readings": [
-    {
-      "card_id": "major_00",
-      "interpretation":
-      "愚者代表新的开始和探索机会。"
-    },
-    {
-      "card_id": "major_01",
-      "interpretation":
-      "魔术师逆位提示需要关注准备不足的问题。"
-    },
-    {
-      "card_id": "major_02",
-      "interpretation":
-      "女祭司提醒用户相信直觉并深入思考。"
-    }
-  ],
-
-  "synthesis":
-  "三张牌共同反映用户面对选择时的状态变化。",
-
-  "advice": [
-    "结合现实信息评估机会。",
-    "不要仅依靠塔罗作出重要决定。"
-  ]
-}
-```
-
----
-
-# 10. Agent Responsibility
+## 4. Agent 内部职责
 
 Agent 负责：
 
-- 理解用户问题；
-- 分析牌面含义；
-- 分析三张牌之间关系；
-- 决定解读结构；
-- 生成自然语言回答；
-- 安全降级。
+- 意图分析；
+- 问题分类；
+- 动态牌阵规划；
+- research / clarify / redirect 路由；
+- 查询 Agent 自己的 knowledge.py；
+- 单牌或多牌解读；
+- 自我反思与修正；
+- 综合叙事；
+- 行动建议；
+- 摘要生成；
+- 敏感内容教育式降级。
+
+后端不再给真实 Agent 注入：
+
+- core_symbolism；
+- upright_keywords；
+- reversed_keywords。
+
+真实 Agent 使用自己的 knowledge.py。
+
+## 5. 返回结构
+
+~~~python
+class CardReading(BaseModel):
+    card_id: str
+    position: str
+    interpretation: str
 
 
----
+class ReadingResponse(BaseModel):
+    status: Literal["success"]
+    summary: str
+    card_readings: list[CardReading]
+    synthesis: str | None = None
+    advice: list[str]
+~~~
 
-# 11. Backend Responsibility
+追问或婉拒路径下：
 
-Backend 负责：
+- status 仍为 success；
+- summary 为追问或婉拒文本；
+- card_readings 为空；
+- synthesis 为 null；
+- advice 为空。
 
-- FastAPI 路由；
-- HTTP 请求处理；
-- 参数校验；
-- 三牌抽取；
-- 塔罗数据查询；
-- Agent 调用；
-- 数据库存储；
-- CORS；
-- 返回结果。
+## 6. Agent 模式
 
+后端支持两种模式：
 
----
+~~~text
+AGENT_MODE=mock
+AGENT_MODE=real
+~~~
 
-# 12. Agent 不负责
+mock：
 
-Agent 不负责：
+- 不调用 LLM；
+- 用于 pytest、CI 和前端早期联调。
 
-- FastAPI；
-- HTTP 状态码；
-- 图片上传；
-- 摄像头；
-- 数据库；
-- 前端展示；
-- 抽牌逻辑。
+real：
 
+- 调用 agent.tarot_agent.TarotAgent；
+- 需要安装 Agent 依赖；
+- 需要配置 OPENAI_API_KEY。
 
----
+## 7. 真实 Agent 环境变量
 
-# 13. Integration Requirement
+~~~text
+AGENT_MODE=real
+OPENAI_API_KEY=实际密钥
+OPENAI_BASE_URL=https://api.siliconflow.cn/v1
+OPENAI_MODEL=deepseek-ai/DeepSeek-V3
+~~~
 
-Agent 同学交付：
+## 8. 交付要求
 
-```
+Agent 目录需要包含：
+
+~~~text
 agent/
 ├── __init__.py
+├── llm.py
+├── models.py
+├── knowledge.py
+├── safety.py
+├── interpreter.py
 ├── tarot_agent.py
-└── requirements.txt
-```
+├── requirements.txt
+└── .env.example
+~~~
 
-必须支持：
+后端只依赖唯一入口：
 
-```python
-from agent.tarot_agent import TarotAgent
-
-
-agent = TarotAgent()
-
-
-result = agent.generate_reading(
-    request
-)
-```
-
----
-
-# 14. Single Entry Rule
-
-Backend 只能调用：
-
-```python
+~~~python
 TarotAgent.generate_reading()
-```
-
-禁止：
-
-Backend 直接调用多个子 Agent。
-
-
-Agent 内部可以自行：
-
-- Prompt 管理；
-- 多模型调用；
-- 任务拆分；
-
-但是对 Backend 只暴露一个统一入口。
-
----
-
-# 15. Current Status
-
-当前：
-
-|模块|状态|
-|-|-|
-|Backend API|Ready|
-|Tarot Data|Ready|
-|Database|Ready|
-|Agent Adapter|Ready|
-|Agent Model|Waiting|
-|Gesture Integration|Ready|
-
-真实 Agent 接入后：
-
-Frontend API 不需要修改。
+~~~
