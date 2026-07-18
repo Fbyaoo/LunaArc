@@ -120,7 +120,10 @@ def analyze_intent(request: ReadingRequest) -> tuple[str, str]:
         return ("用户未提出具体问题，需要通用运势解读", "general")
     llm = make_llm(128)
     cards_desc = "、".join(f"{c.name_zh}({c.position})" for c in request.cards)
-    system = "你善于洞察人心，一句话提炼用户提问背后的真实诉求（情绪/关系/事业/自我成长）。不超过30字。"
+    system = (
+        "你善于洞察人心，一句话提炼用户提问背后的真实诉求。"
+        "只根据用户明确表达概括；如果问题很模糊，不要强行归到情绪、关系、事业等类型。不超过30字。"
+    )
     prompt_text = f"用户问题：{request.question}\n抽到的牌：{cards_desc}\n请概括用户真正想了解的核心议题："
     prompt = ChatPromptTemplate.from_messages([("system", system), ("user", "{input}")])
     try:
@@ -172,7 +175,8 @@ def generate_clarify_question(request: ReadingRequest, intent: str) -> str:
     system = (
         "你是一位温柔有耐心的塔罗师。用户的问题不够具体，塔罗无法给出有意义的解读。"
         "请用一句话温和地告诉用户，建议ta在下次抽牌前提一个更具体的问题，"
-        "让解读更有针对性。不要提及本次已抽到的牌面信息，也不要让用户补充细节。不超过50字。"
+        "让解读更有针对性。不要提及本次已抽到的牌面信息，也不要让用户补充细节。"
+        "不要猜测用户是在问感情、事业、健康或其他具体类型。不超过50字。"
     )
     prompt_text = (
         f"用户问题：{request.question}\n"
@@ -185,6 +189,29 @@ def generate_clarify_question(request: ReadingRequest, intent: str) -> str:
         return resp.content.strip()
     except Exception:
         return "你的问题比较宽泛，下次抽牌时可以试着问得更具体一些，这样塔罗才能给你更有针对性的指引。"
+
+
+def generate_clarify_followup(request: ReadingRequest, intent: str, round_num: int) -> str:
+    """三牌追问：在同一轮对话中引导用户补充细节，后续 resume_reading 继续解读"""
+    llm = make_llm(200)
+    system = (
+        "你是一位温柔有耐心的塔罗师。用户的问题比较宽泛，你需要引导ta在同一轮对话中补充一点细节，"
+        "这样塔罗才能给出更有针对性的解读。注意：用户已经抽好了牌，你需要让ta在问题中补充具体情境，"
+        "但不要提及具体的牌面信息。请用一句话温和地提问，引导ta补充问题的背景或方向。"
+        "追问必须保持中性，不要出现感情、事业、关系、健康、财务等类型倾向，除非用户原问题已经明确提到。不超过50字。"
+    )
+    prompt_text = (
+        f"用户问题：{request.question}\n"
+        f"你的初步理解：{intent}\n"
+        f"这是第{round_num}次追问，请用中性语言引导用户补充具体情境、正在纠结的选择或最想确认的方向。"
+        f"不超过50字。"
+    )
+    prompt = ChatPromptTemplate.from_messages([("system", system), ("user", "{input}")])
+    try:
+        resp = (prompt | llm).invoke({"input": prompt_text})
+        return resp.content.strip()
+    except Exception:
+        return "能否再多说一点你目前的情况呢？这样塔罗可以给你更有针对性的指引。"
 
 
 def generate_redirect_message(request: ReadingRequest) -> str:
@@ -246,13 +273,16 @@ def refine_readings(
         llm = make_llm(512)
         rev = "逆位" if card.orientation == "reversed" else "正位"
         pos_label = position_labels.get(card.position) or POSITION_LABEL.get(card.position, card.position)
-        system = "你是一位精益求精的塔罗解读师，根据审核反馈修正解读。启示必须紧扣用户问题给出针对性回应。"
+        system = (
+            "你是一位专业塔罗解读师，根据审核反馈修正。"
+            "保留温柔坚定、简洁有力的语气；补足牌面诗意画面与针对用户问题的启示。不寒暄不废话。"
+        )
         prompt_text = (
             f"用户问题：{request.question or '无'}\n"
             f"原解读：{reading.interpretation}\n"
             f"审核反馈：{feedback}\n"
             f"牌：{card.name_zh}（{rev}）位置：{pos_label}\n"
-            f"请根据反馈改进解读。用诗意的语言描绘牌面，启示部分必须针对用户问题给出直接回应。不超过200字。"
+            f"请根据反馈改进：先让牌面意象可感，再给出紧扣问题的提醒。不超过200字。"
         )
         prompt = ChatPromptTemplate.from_messages([("system", system), ("user", "{input}")])
         try:
@@ -261,6 +291,10 @@ def refine_readings(
         except Exception:
             refined.append(reading)
     return refined
+
+
+# ── 追问轮次上限（预留扩展，当前为1轮即单次追问） ──
+_MAX_CLARIFY_ROUNDS = 1
 
 
 class _AgentState(TypedDict):
@@ -272,6 +306,9 @@ class _AgentState(TypedDict):
     spread_positions: list[str]
     status: str
     clarify_question: str
+    clarify_round: int
+    clarify_history: list[str]
+    user_supplement: str
     card_knowledge: Annotated[dict, operator.ior]
     readings: list[CardReading]
     synthesis: str | None
@@ -308,8 +345,32 @@ def _route_dispatch(state: _AgentState) -> str:
 
 
 def _node_clarify(state: _AgentState) -> dict:
-    q = generate_clarify_question(state["request"], state.get("intent", ""))
-    return {"status": "needs_clarify", "clarify_question": q}
+    req = state["request"]
+    # single_card / daily_card：原有逻辑，引导用户下次抽牌前提更具体的问题
+    if req.spread_type in ("single_card", "daily_card"):
+        q = generate_clarify_question(req, state.get("intent", ""))
+        return {"status": "needs_clarify", "clarify_question": q}
+    # three_card：同一轮内追问，允许用户补充细节后继续解读
+    round_num = state.get("clarify_round", 0)
+    q = generate_clarify_followup(req, state.get("intent", ""), round_num + 1)
+    history = list(state.get("clarify_history", [])) + [q]
+    return {
+        "status": "awaiting_clarify",
+        "clarify_question": q,
+        "clarify_round": round_num,
+        "clarify_history": history,
+    }
+
+
+def _route_after_clarify(state: _AgentState) -> str:
+    """clarify 节点后的条件路由：single/daily → END，three_card → 条件判断"""
+    req = state["request"]
+    if req.spread_type in ("single_card", "daily_card"):
+        return "end"
+    # three_card：如果已超最大轮次，强制进入解读
+    if state.get("clarify_round", 0) >= _MAX_CLARIFY_ROUNDS:
+        return "research"
+    return "end"
 
 
 def _node_redirect(state: _AgentState) -> dict:
@@ -330,6 +391,7 @@ def _node_interpret(state: _AgentState) -> dict:
         intent=state.get("intent", ""),
         knowledge_map=state.get("card_knowledge", {}),
         position_labels=state.get("position_labels", {}),
+        user_supplement=state.get("user_supplement", ""),
     )
     return {"readings": readings}
 
@@ -395,11 +457,11 @@ def _route_quality_decision(state: _AgentState) -> str:
 
 
 def _node_refine_visual(state: _AgentState) -> dict:
-    return _refine_with_focus(state, "画面描绘力不够生动。请重点改善：用诗意的语言直接描绘人物、色彩、动作、环境，不要使用「我看到」「画面中」等字眼，让读者仿佛置身其中。")
+    return _refine_with_focus(state, "语言不够有画面感。用简练、诗意但克制的语言让人物、色彩、动作和氛围可感，再自然落到问题本身。禁止「我看到」等套话。")
 
 
 def _node_refine_relevance(state: _AgentState) -> dict:
-    return _refine_with_focus(state, "启示与用户问题的关联不够紧密。请重点改善：结合牌的位置含义，让启示直接回应用户的困惑。")
+    return _refine_with_focus(state, "回应不够针对。结合牌的位置含义，更直接地回答用户原问题，不要写成泛泛的人生建议。")
 
 
 def _node_refine_symbolism(state: _AgentState) -> dict:
@@ -414,13 +476,16 @@ def _refine_with_focus(state: _AgentState, focus: str) -> dict:
         llm = make_llm(512)
         rev = "逆位" if card.orientation == "reversed" else "正位"
         pos_label = pos_labels.get(card.position) or POSITION_LABEL.get(card.position, card.position)
-        system = "你是一位精益求精的塔罗解读师，根据指定的改进方向修正解读。启示必须紧扣用户问题。"
+        system = (
+            "你是一位专业塔罗解读师，根据改进方向修正。"
+            "输出要温柔坚定、无废话；必须同时有可感的牌面意象和紧扣用户问题的启示。"
+        )
         prompt_text = (
             f"用户问题：{state['request'].question or '无'}\n"
             f"原解读：{reading.interpretation}\n"
             f"改进方向：{focus}\n"
             f"牌：{card.name_zh}（{rev}）位置：{pos_label}\n"
-            f"请重新生成解读，启示部分必须针对用户问题给出直接回应。不超过200字。"
+            f"请重新生成：先让牌面意象可感，再给出紧扣问题的提醒。不超过200字。"
         )
         prompt = ChatPromptTemplate.from_messages([("system", system), ("user", "{input}")])
         try:
@@ -440,6 +505,7 @@ def _node_synthesize(state: _AgentState) -> dict:
         req.spread_type, req.question, state["readings"],
         state["is_sensitive"],
         position_labels=state.get("position_labels"),
+        user_supplement=state.get("user_supplement", ""),
     )
     return {"synthesis": syn}
 
@@ -453,6 +519,7 @@ def _node_gen_advice(state: _AgentState) -> dict:
         req.spread_type, req.question, req.cards,
         readings, state.get("synthesis"), state["is_sensitive"],
         position_labels=state.get("position_labels"),
+        user_supplement=state.get("user_supplement", ""),
     )
     return {"advice": adv}
 
@@ -504,7 +571,14 @@ class TarotAgent:
                 "redirect": "redirect",
             },
         )
-        builder.add_edge("clarify", END)
+        builder.add_conditional_edges(
+            "clarify",
+            _route_after_clarify,
+            {
+                "end": END,
+                "research": "research_cards",
+            },
+        )
         builder.add_edge("redirect", END)
 
         builder.add_edge("research_cards", "interpret")
@@ -531,7 +605,7 @@ class TarotAgent:
 
         return builder.compile()
 
-    def generate_reading(self, request: ReadingRequest) -> ReadingResponse:
+    def generate_reading(self, request: ReadingRequest, user_supplement: str = "") -> ReadingResponse:
         initial: _AgentState = {
             "request": request,
             "is_sensitive": is_sensitive(request.question),
@@ -541,6 +615,9 @@ class TarotAgent:
             "spread_positions": [],
             "status": "normal",
             "clarify_question": "",
+            "clarify_round": 0,
+            "clarify_history": [],
+            "user_supplement": user_supplement,
             "card_knowledge": {},
             "readings": [],
             "synthesis": None,
@@ -554,6 +631,14 @@ class TarotAgent:
         if result.get("status") == "needs_clarify":
             return ReadingResponse(
                 status="success",
+                summary=result.get("clarify_question", "能否再多说一些？"),
+                card_readings=[],
+                advice=[],
+            )
+
+        if result.get("status") == "awaiting_clarify":
+            return ReadingResponse(
+                status="awaiting_clarify",
                 summary=result.get("clarify_question", "能否再多说一些？"),
                 card_readings=[],
                 advice=[],
@@ -580,4 +665,121 @@ class TarotAgent:
             card_readings=result["readings"],
             synthesis=result.get("synthesis"),
             advice=result["advice"],
+        )
+
+    def resume_reading(self, request: ReadingRequest, user_supplement: str) -> ReadingResponse:
+        """三牌追问后，用户补充了细节，继续完成解读。
+
+        绕过图调度（dispatch 已判断为 clarify），手动按节点顺序执行：
+        research_cards → interpret → self_reflect → synthesize → gen_advice → gen_summary
+        """
+        # 构建初始 state，user_supplement 会通过 state 注入到后续节点
+        state: _AgentState = {
+            "request": request,
+            "is_sensitive": is_sensitive(request.question),
+            "intent": "",
+            "intent_category": "",
+            "position_labels": {},
+            "spread_positions": [],
+            "status": "normal",
+            "clarify_question": "",
+            "clarify_round": _MAX_CLARIFY_ROUNDS + 1,
+            "clarify_history": [],
+            "user_supplement": user_supplement,
+            "card_knowledge": {},
+            "readings": [],
+            "synthesis": None,
+            "advice": [],
+            "summary": "",
+            "reflect_count": 0,
+            "reflect_feedback": "",
+        }
+
+        # ① 意图分析 + 牌阵规划（将用户补充信息拼入问题，使意图分类更准确）
+        combined_question = request.question or ""
+        if user_supplement:
+            combined_question = f"{combined_question}（补充：{user_supplement}）" if combined_question else user_supplement
+        # 构造临时 request 用于意图分析
+        temp_request = ReadingRequest(
+            question=combined_question,
+            spread_type=request.spread_type,
+            cards=request.cards,
+        )
+        intent_desc, intent_category = analyze_intent(temp_request)
+        config: SpreadConfig = plan_spread(request.spread_type, combined_question)
+        state["intent"] = intent_desc
+        state["intent_category"] = config.intent
+        state["position_labels"] = config.position_map
+        state["spread_positions"] = config.positions
+
+        # ② 查询知识库
+        knowledge: dict[str, str] = {}
+        for card in request.cards:
+            knowledge[card.card_id] = lookup_card_knowledge(card.card_id, card.orientation)
+        state["card_knowledge"] = knowledge
+
+        # ③ 解读牌面
+        readings = interpret_cards(
+            request,
+            intent=state["intent"],
+            knowledge_map=state["card_knowledge"],
+            position_labels=state["position_labels"],
+            user_supplement=user_supplement,
+        )
+        state["readings"] = readings
+
+        if not readings:
+            return ReadingResponse(
+                status="success",
+                summary="暂时无法解读，请稍后重试。",
+                card_readings=[],
+                advice=["稍等片刻，再试一次。"],
+            )
+
+        # ④ 自我反思 + 修正循环
+        for _ in range(_MAX_REFLECT_ROUNDS + 1):
+            passed, feedback = self_reflect(
+                state["readings"],
+                position_labels=state.get("position_labels"),
+            )
+            if passed:
+                break
+            state["reflect_count"] += 1
+            if state["reflect_count"] > _MAX_REFLECT_ROUNDS:
+                break
+            state["readings"] = refine_readings(
+                request, state["readings"], feedback,
+                position_labels=state.get("position_labels"),
+            )
+
+        # ⑤ 综合叙事
+        syn = synthesize(
+            request.spread_type, request.question, state["readings"],
+            state["is_sensitive"],
+            position_labels=state.get("position_labels"),
+            user_supplement=user_supplement,
+        )
+        state["synthesis"] = syn
+
+        # ⑥ 生成建议
+        adv = generate_advice_list(
+            request.spread_type, request.question, request.cards,
+            state["readings"], state.get("synthesis"), state["is_sensitive"],
+            position_labels=state.get("position_labels"),
+            user_supplement=user_supplement,
+        )
+        state["advice"] = adv
+
+        # ⑦ 生成摘要
+        sum_text = generate_summary(request.spread_type, request.question, state["readings"], state.get("synthesis"))
+        if state["is_sensitive"]:
+            sum_text = f"塔罗映照内心，但无法替代专业判断。{sum_text}"
+        state["summary"] = sum_text
+
+        return ReadingResponse(
+            status="success",
+            summary=state["summary"],
+            card_readings=state["readings"],
+            synthesis=state.get("synthesis"),
+            advice=state["advice"],
         )

@@ -16,6 +16,7 @@ def interpret_one_card(
     intent: str = "",
     knowledge: str = "",
     position_label: str | None = None,
+    user_supplement: str = "",
 ) -> CardReading:
     llm = make_llm(512)
     rev = "逆位" if card.orientation == "reversed" else "正位"
@@ -26,18 +27,26 @@ def interpret_one_card(
         prompt_text += f"用户核心诉求：{intent}\n"
     if knowledge:
         prompt_text += f"牌义参考：{knowledge}\n"
+    if user_supplement:
+        prompt_text += f"用户补充信息：{user_supplement}\n"
     if request.question:
         prompt_text += f"用户问题：{request.question}\n"
-        prompt_text += "先以诗意的语言描绘这张牌的经典画面，然后结合用户的具体问题，给出在当前位置下针对性的启示。不超过200字。"
+        prompt_text += (
+            "请先用一两句有画面感的语言写出牌面的关键意象，让人能感到人物、色彩、动作与氛围；"
+            "再把这些意象转成针对用户问题的具体提醒。温柔坚定，无寒暄无废话。不超过200字。"
+        )
     else:
-        prompt_text += "先以诗意的语言描绘这张牌的经典画面，再自然过渡到它在当前位置下的启示。不超过200字。"
+        prompt_text += (
+            "请先用一两句有画面感的语言写出牌面的关键意象，让人能感到人物、色彩、动作与氛围；"
+            "再告诉ta这张牌此刻带来的具体提醒。温柔坚定，无寒暄无废话。不超过200字。"
+        )
 
     system = (
-        "你是一位温柔而富有诗意的塔罗解读师。"
-        "请参考提供的【牌面画面】信息，用诗意的语言直接描绘画面中的人物、动作、色彩与氛围，"
-        "不要自己编造画面细节，也不要使用「我看到」「画面中」「牌面上」等元描述字眼，"
-        "而是让读者仿佛置身其中。如果用户提出了具体问题，启示部分必须紧扣用户的问题，"
-        "给出直接而有针对性的回应，而非泛泛而谈。温柔而坚定，简洁而有画面感。"
+        "你是一位专业的塔罗解读师，语气温柔而坚定，表达简洁有力量。"
+        "必须参考牌义与牌面画面，不编造未给出的牌面元素。"
+        "interpretation 要同时包含：①诗意但克制的牌面意象，让用户仿佛站在那张牌里；"
+        "②紧扣用户问题或当前位置的启示，给出清晰、可落地的理解。"
+        "禁止使用「亲爱的」「我看到」「这段解读」等套话；不要寒暄、不要空泛安慰、不要过度抒情。"
     )
     prompt = ChatPromptTemplate.from_messages([
         ("system", system),
@@ -57,6 +66,7 @@ def interpret_cards(
     intent: str = "",
     knowledge_map: dict[str, str] | None = None,
     position_labels: dict[str, str] | None = None,
+    user_supplement: str = "",
 ) -> list[CardReading]:
     """单牌同步，多牌线程池并行"""
     card_count = len(request.cards)
@@ -66,7 +76,8 @@ def interpret_cards(
         try:
             card = request.cards[0]
             return [interpret_one_card(request, card, intent, knowledge_map.get(card.card_id, ""),
-                                       position_labels.get(card.position))]
+                                       position_labels.get(card.position),
+                                       user_supplement=user_supplement)]
         except Exception:
             return []
     readings: list[CardReading | None] = [None] * card_count
@@ -76,6 +87,7 @@ def interpret_cards(
                 interpret_one_card, request, request.cards[i],
                 intent, knowledge_map.get(request.cards[i].card_id, ""),
                 position_labels.get(request.cards[i].position),
+                user_supplement,
             ): i
             for i in range(card_count)
         }
@@ -94,6 +106,7 @@ def synthesize(
     readings: list[CardReading],
     is_sensitive: bool = False,
     position_labels: dict[str, str] | None = None,
+    user_supplement: str = "",
 ) -> str | None:
     """仅 three_card 生成综合叙事"""
     if spread_type != "three_card":
@@ -109,15 +122,16 @@ def synthesize(
     prompt_text = (
         f"用户问题：{question}\n"
         f"三张牌解读：\n{all_interp}\n"
-        f"请将这三张牌串联成一段有起承转合的叙事，"
-        f"并紧扣用户的具体问题给出综合性的回应。不超过180字。"
+        f"请将三张牌的意象串联成一段完整回应，必须紧扣用户原问题，说明局势如何流动、真正的卡点在哪里、下一步该把力气放在哪里。"
+        f"温柔坚定，无寒暄无废话。不超过180字。"
     )
+    if user_supplement:
+        prompt_text += f"\n用户补充了以下信息，请在综合中参考：{user_supplement}"
     if is_sensitive:
         prompt_text += "\n注意：用户问题涉及专业领域，请聚焦于内心探索而非给出专业结论。"
     system = (
-        "你善于将多张牌的意象编织成完整的叙事，并针对用户的问题给出直接回应。"
-        "用诗意的语言串联牌面画面，揭示牌面之间的内在呼应。"
-        "温柔而深刻，简洁而有力量。"
+        "你是一位专业塔罗师，擅长把多张牌的画面与象征串成清晰判断。"
+        "synthesis 必须紧扣用户问题，不要写成泛泛的人生建议；语气温柔坚定，不寒暄，不废话。"
     )
     prompt = ChatPromptTemplate.from_messages([
         ("system", system),
@@ -142,20 +156,23 @@ def generate_summary(
     if spread_type == "daily_card":
         prompt_text = (
             f"今日牌：{readings[0].interpretation}\n"
-            f"精炼总结今日运势的核心启示，不超过35字。"
+            f"用一句话总结今日提醒，不超过35字。"
         )
     elif spread_type == "single_card":
         prompt_text = (
             f"问题：{question}\n解读：{readings[0].interpretation}\n"
-            f"针对用户的问题，用一句话概括核心启示，不超过35字。"
+            f"用一句话紧扣原问题回应，不超过35字。"
         )
     else:
         prompt_text = (
             f"问题：{question}\n综合解读：{synthesis}\n"
-            f"针对用户的问题，用一句话概括整体启示，不超过45字。"
+            f"用一句话紧扣原问题回应，不超过45字。"
         )
 
-    system = "你用一句话精准概括塔罗对用户问题的核心回应，简洁而有力量。"
+    system = (
+        "用一句话直接回应来访者的原问题，温柔坚定，不废话。"
+        "如果原问题很模糊，只做中性概括或给出中性提醒；不要强行猜测为感情、事业、健康等具体类型，也不要输出带类型倾向的追问。"
+    )
     prompt = ChatPromptTemplate.from_messages([
         ("system", system),
         ("user", "{input}"),
@@ -176,6 +193,7 @@ def generate_advice_list(
     synthesis: str | None,
     is_sensitive: bool = False,
     position_labels: dict[str, str] | None = None,
+    user_supplement: str = "",
 ) -> list[str]:
     llm = make_llm(512)
 
@@ -191,14 +209,14 @@ def generate_advice_list(
             f"用户问题：{question}\n"
             f"牌阵解读：\n{all_interp}\n"
             f"综合：{synthesis}\n"
-            f"针对用户的具体问题，给出 1-2 条可落地的行动建议。温柔而坚定。"
+            f"给出 1-2 条简短可行的建议。"
             f'以 JSON 字符串数组格式返回，如：["建议1", "建议2"]'
         )
     elif spread_type == "daily_card":
         prompt_text = (
             f"今日牌：{cards[0].name_zh}（{'逆位' if cards[0].orientation == 'reversed' else '正位'}）\n"
             f"解读：{readings[0].interpretation}\n"
-            f"请给出 1-2 条今日小建议，温柔而坚定。"
+            f"给出 1-2 条今日小建议。"
             f'以 JSON 字符串数组格式返回，如：["建议1", "建议2"]'
         )
     else:
@@ -206,14 +224,16 @@ def generate_advice_list(
             f"问题：{question}\n"
             f"牌：{cards[0].name_zh}\n"
             f"解读：{readings[0].interpretation}\n"
-            f"针对用户的问题，给出 2-3 条可落地的行动建议。"
+            f"给出 2-3 条简短可行的建议。"
             f'以 JSON 字符串数组格式返回，如：["建议1", "建议2"]'
         )
 
+    if user_supplement:
+        prompt_text += f"\n用户补充了以下信息，请据此给出建议：{user_supplement}"
     if is_sensitive:
-        prompt_text += "\n注意：用户问题涉及专业领域，引导用户关注内心感受与自我觉察，而非给出专业建议。"
+        prompt_text += "\n注意：引导用户关注内心感受，而非给出专业结论。"
 
-    system = "你是一位温柔而睿智的生活导师。建议必须紧扣用户的具体问题，简短、可落地。只输出 JSON 数组。"
+    system = "你是一位专业塔罗师。建议要简短、具体、温柔坚定，紧扣用户问题。只输出 JSON 数组。"
     prompt = ChatPromptTemplate.from_messages([
         ("system", system),
         ("user", "{input}"),
