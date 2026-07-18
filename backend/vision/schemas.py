@@ -5,7 +5,7 @@ from typing import Literal
 from pydantic import BaseModel, Field
 
 
-GestureName = Literal["fist", "one", "ok", "peace"]
+GestureName = Literal["fist", "one", "like", "peace"]
 DetectorName = Literal["yolo", "mediapipe"]
 
 

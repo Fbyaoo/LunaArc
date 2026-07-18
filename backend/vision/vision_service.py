@@ -12,7 +12,7 @@ class VisionService:
 
     def __init__(
         self,
-        model_path: str | Path = "models/best_gesture.pt",
+        model_path: str | Path | None = None,
     ) -> None:
         self.gesture_detector = GestureDetector(model_path)
         self.gesture_events = GestureEventEngine()
@@ -24,9 +24,7 @@ class VisionService:
     ) -> list[dict]:
         events: list[VisualEvent] = []
 
-        gesture = self.gesture_detector.detect_gesture(image_bytes, filename=filename)
-        event = self.gesture_events.update(gesture)
-        if event is not None:
-            events.append(event)
+        gestures = self.gesture_detector.detect_gestures(image_bytes, filename=filename)
+        events.extend(self.gesture_events.update_many(gestures))
 
         return [event.model_dump() for event in events]

@@ -18,7 +18,7 @@ def require_model_file(model_path: str | Path) -> Path:
     if not path.exists():
         raise FileNotFoundError(
             f"YOLO model not found: {path}. "
-            "请把训练好的 best.pt 复制到 models/ 目录，并在初始化时传入正确路径。"
+            "请把训练好的 best_gesture.pt 复制到 model/ 目录，并在初始化时传入正确路径。"
         )
     return path
 
