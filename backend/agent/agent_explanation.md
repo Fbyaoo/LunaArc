@@ -1,6 +1,6 @@
 # 塔罗解读 Agent
 
-基于 LLM 的塔罗牌解读智能体，对后端暴露唯一入口 `TarotAgent.generate_reading()`。采用诗意画面叙事风格，先描绘牌面细节再将画面转化为启示，温柔而坚定。
+基于 LLM 的塔罗牌解读智能体，对后端暴露唯一入口 `TarotAgent.generate_reading()`。
 
 ## 目录结构
 
@@ -31,15 +31,15 @@ cp .env.example .env
 
 ```
 OPENAI_API_KEY=你的API密钥
-OPENAI_BASE_URL=https://api.siliconflow.cn/v1
-OPENAI_MODEL=deepseek-ai/DeepSeek-V3
+OPENAI_BASE_URL=https://api.deepseek.com/v1
+OPENAI_MODEL=deepseek-chat
 ```
 
 | 变量 | 说明 | 默认值 |
 |------|------|--------|
 | `OPENAI_API_KEY` | LLM API 密钥（必填） | — |
-| `OPENAI_BASE_URL` | API 端点地址 | `https://api.siliconflow.cn/v1` |
-| `OPENAI_MODEL` | 模型名称 | `deepseek-ai/DeepSeek-V3` |
+| `OPENAI_BASE_URL` | API 端点地址 | `https://api.deepseek.com/v1` |
+| `OPENAI_MODEL` | 模型名称 | `deepseek-chat` |
 
 ### 2. 安装依赖
 
