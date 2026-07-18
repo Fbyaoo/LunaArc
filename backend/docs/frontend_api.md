@@ -289,7 +289,7 @@ application/json
     {
       "card_id": "major_00",
       "name_zh": "愚者",
-      "position": "core",
+      "position": "1",
       "orientation": "upright"
     }
   ],
@@ -362,7 +362,7 @@ future
   "card_readings": [
     {
       "card_id": "major_00",
-      "position": "core",
+      "position": "1",
       "interpretation":
       "这张牌代表新的开始"
     }
@@ -506,3 +506,78 @@ Vision / Agent
 真实模型接入后：
 
 前端接口保持不变。
+
+## Draw And Read Final Rules
+
+聚合接口：
+
+```text
+POST /api/draw-and-read
+```
+
+该接口会一次完成：
+
+```text
+抽牌
+  ↓
+调用 Agent
+  ↓
+保存数据库
+  ↓
+返回 cards 和 reading
+```
+
+牌阵规则：
+
+| spread_type | 牌数 | position | question |
+|---|---:|---|---|
+| `daily_card` | 1 | `"1"` | 可为空 |
+| `single_card` | 1 | `"1"` | 必填 |
+| `three_card` | 3 | `"1"`、`"2"`、`"3"` | 必填 |
+
+Daily Card 请求：
+
+```json
+{
+  "question": null,
+  "spread_type": "daily_card"
+}
+```
+
+Single Card 请求：
+
+```json
+{
+  "question": "我现在最需要关注什么？",
+  "spread_type": "single_card"
+}
+```
+
+Three Card 请求：
+
+```json
+{
+  "question": "我适合接受这份实习吗？",
+  "spread_type": "three_card"
+}
+```
+
+Single Card 或 Three Card 问题为空时：
+
+```json
+{
+  "detail": {
+    "error_code": "EMPTY_QUESTION",
+    "message": "请输入你想询问的问题。"
+  }
+}
+```
+
+成功调用后，占卜记录会自动进入：
+
+```text
+GET /api/history
+```
+
+---
+
