@@ -1,6 +1,7 @@
 """塔罗牌 Agent — LangGraph 状态图驱动"""
 
 import operator
+from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass
 from typing import Annotated, TypedDict
 
@@ -114,10 +115,14 @@ def plan_spread(spread_type: str, question: str | None) -> SpreadConfig:
 
 
 
-def analyze_intent(request: ReadingRequest) -> tuple[str, str]:
-    """返回 (意图描述, 意图类别)"""
+def analyze_intent(request: ReadingRequest) -> str:
+    """返回意图描述（一句话提炼用户真实诉求）。
+    
+    注意：意图类别由 plan_spread 中的 classify_intent 统一负责，
+    避免重复调用 API。
+    """
     if not request.question:
-        return ("用户未提出具体问题，需要通用运势解读", "general")
+        return "用户未提出具体问题，需要通用运势解读"
     llm = make_llm(128)
     cards_desc = "、".join(f"{c.name_zh}({c.position})" for c in request.cards)
     system = (
@@ -128,11 +133,9 @@ def analyze_intent(request: ReadingRequest) -> tuple[str, str]:
     prompt = ChatPromptTemplate.from_messages([("system", system), ("user", "{input}")])
     try:
         resp = (prompt | llm).invoke({"input": prompt_text})
-        intent_desc = resp.content.strip()
+        return resp.content.strip()
     except Exception:
-        intent_desc = request.question
-    intent_category = classify_intent(request.question)
-    return (intent_desc, intent_category)
+        return request.question
 
 
 _DISPATCH_PROMPT = (
@@ -293,7 +296,6 @@ def refine_readings(
     return refined
 
 
-# ── 追问轮次上限（预留扩展，当前为1轮即单次追问） ──
 _MAX_CLARIFY_ROUNDS = 1
 
 
@@ -319,8 +321,8 @@ class _AgentState(TypedDict):
 
 
 def _node_analyze_intent(state: _AgentState) -> dict:
-    intent_desc, intent_category = analyze_intent(state["request"])
-    return {"intent": intent_desc, "intent_category": intent_category}
+    intent_desc = analyze_intent(state["request"])
+    return {"intent": intent_desc}
 
 
 def _node_plan_spread(state: _AgentState) -> dict:
@@ -346,11 +348,9 @@ def _route_dispatch(state: _AgentState) -> str:
 
 def _node_clarify(state: _AgentState) -> dict:
     req = state["request"]
-    # single_card / daily_card：原有逻辑，引导用户下次抽牌前提更具体的问题
     if req.spread_type in ("single_card", "daily_card"):
         q = generate_clarify_question(req, state.get("intent", ""))
         return {"status": "needs_clarify", "clarify_question": q}
-    # three_card：同一轮内追问，允许用户补充细节后继续解读
     round_num = state.get("clarify_round", 0)
     q = generate_clarify_followup(req, state.get("intent", ""), round_num + 1)
     history = list(state.get("clarify_history", [])) + [q]
@@ -367,7 +367,6 @@ def _route_after_clarify(state: _AgentState) -> str:
     req = state["request"]
     if req.spread_type in ("single_card", "daily_card"):
         return "end"
-    # three_card：如果已超最大轮次，强制进入解读
     if state.get("clarify_round", 0) >= _MAX_CLARIFY_ROUNDS:
         return "research"
     return "end"
@@ -395,7 +394,7 @@ def _node_interpret(state: _AgentState) -> dict:
     )
     return {"readings": readings}
 
-_MAX_REFLECT_ROUNDS = 2
+_MAX_REFLECT_ROUNDS = 1
 
 _QUALITY_GATE_PROMPT = (
     "你是塔罗解读的质量审核员。请从三个维度审视以下解读（1-5分）：\n"
@@ -510,29 +509,41 @@ def _node_synthesize(state: _AgentState) -> dict:
     return {"synthesis": syn}
 
 
-def _node_gen_advice(state: _AgentState) -> dict:
+def _node_gen_advice_and_summary(state: _AgentState) -> dict:
     req = state["request"]
     readings = state["readings"]
     if not readings:
-        return {"advice": ["保持冷静，关注当下。"]}
-    adv = generate_advice_list(
-        req.spread_type, req.question, req.cards,
-        readings, state.get("synthesis"), state["is_sensitive"],
-        position_labels=state.get("position_labels"),
-        user_supplement=state.get("user_supplement", ""),
-    )
-    return {"advice": adv}
+        return {
+            "advice": ["保持冷静，关注当下。"],
+            "summary": "静观其变",
+        }
 
+    synthesis = state.get("synthesis")
+    is_sensitive = state["is_sensitive"]
+    position_labels = state.get("position_labels")
+    user_supplement = state.get("user_supplement", "")
 
-def _node_gen_summary(state: _AgentState) -> dict:
-    req = state["request"]
-    readings = state["readings"]
-    if not readings:
-        return {"summary": "静观其变"}
-    sum_text = generate_summary(req.spread_type, req.question, readings, state.get("synthesis"))
-    if state["is_sensitive"]:
-        sum_text = f"塔罗映照内心，但无法替代专业判断。{sum_text}"
-    return {"summary": sum_text}
+    def _gen_advice() -> list[str]:
+        return generate_advice_list(
+            req.spread_type, req.question, req.cards,
+            readings, synthesis, is_sensitive,
+            position_labels=position_labels,
+            user_supplement=user_supplement,
+        )
+
+    def _gen_summary() -> str:
+        sum_text = generate_summary(req.spread_type, req.question, readings, synthesis)
+        if is_sensitive:
+            sum_text = f"塔罗映照内心，但无法替代专业判断。{sum_text}"
+        return sum_text
+
+    with ThreadPoolExecutor(max_workers=2) as executor:
+        advice_future = executor.submit(_gen_advice)
+        summary_future = executor.submit(_gen_summary)
+        adv = advice_future.result()
+        sum_text = summary_future.result()
+
+    return {"advice": adv, "summary": sum_text}
 
 
 class TarotAgent:
@@ -556,8 +567,7 @@ class TarotAgent:
         builder.add_node("refine_relevance", _node_refine_relevance)
         builder.add_node("refine_symbolism", _node_refine_symbolism)
         builder.add_node("synthesize", _node_synthesize)
-        builder.add_node("gen_advice", _node_gen_advice)
-        builder.add_node("gen_summary", _node_gen_summary)
+        builder.add_node("gen_output", _node_gen_advice_and_summary)
 
         builder.set_entry_point("analyze_intent")
         builder.add_edge("analyze_intent", "plan_spread")
@@ -599,9 +609,8 @@ class TarotAgent:
         builder.add_edge("refine_relevance", "self_reflect")
         builder.add_edge("refine_symbolism", "self_reflect")
 
-        builder.add_edge("synthesize", "gen_advice")
-        builder.add_edge("gen_advice", "gen_summary")
-        builder.add_edge("gen_summary", END)
+        builder.add_edge("synthesize", "gen_output")
+        builder.add_edge("gen_output", END)
 
         return builder.compile()
 
@@ -668,12 +677,7 @@ class TarotAgent:
         )
 
     def resume_reading(self, request: ReadingRequest, user_supplement: str) -> ReadingResponse:
-        """三牌追问后，用户补充了细节，继续完成解读。
-
-        绕过图调度（dispatch 已判断为 clarify），手动按节点顺序执行：
-        research_cards → interpret → self_reflect → synthesize → gen_advice → gen_summary
-        """
-        # 构建初始 state，user_supplement 会通过 state 注入到后续节点
+        """三牌追问后，用户补充了细节，继续完成解读。绕过图调度，手动按节点顺序执行。"""
         state: _AgentState = {
             "request": request,
             "is_sensitive": is_sensitive(request.question),
@@ -695,17 +699,16 @@ class TarotAgent:
             "reflect_feedback": "",
         }
 
-        # ① 意图分析 + 牌阵规划（将用户补充信息拼入问题，使意图分类更准确）
+        # ① 意图分析 + 牌阵规划
         combined_question = request.question or ""
         if user_supplement:
             combined_question = f"{combined_question}（补充：{user_supplement}）" if combined_question else user_supplement
-        # 构造临时 request 用于意图分析
         temp_request = ReadingRequest(
             question=combined_question,
             spread_type=request.spread_type,
             cards=request.cards,
         )
-        intent_desc, intent_category = analyze_intent(temp_request)
+        intent_desc = analyze_intent(temp_request)
         config: SpreadConfig = plan_spread(request.spread_type, combined_question)
         state["intent"] = intent_desc
         state["intent_category"] = config.intent
@@ -736,7 +739,7 @@ class TarotAgent:
                 advice=["稍等片刻，再试一次。"],
             )
 
-        # ④ 自我反思 + 修正循环
+        # ④ 自我反思 + 细粒度修正循环（与图内路径对齐：细判 + 专项修正）
         for _ in range(_MAX_REFLECT_ROUNDS + 1):
             passed, feedback = self_reflect(
                 state["readings"],
@@ -747,10 +750,20 @@ class TarotAgent:
             state["reflect_count"] += 1
             if state["reflect_count"] > _MAX_REFLECT_ROUNDS:
                 break
-            state["readings"] = refine_readings(
-                request, state["readings"], feedback,
-                position_labels=state.get("position_labels"),
-            )
+            # 细判：用 _route_quality_gate 分类，再用 _refine_with_focus 专项修正
+            decision = _route_quality_gate(state)
+            if decision in ("refine_visual", "refine_relevance", "refine_symbolism"):
+                focus_map = {
+                    "refine_visual": "语言不够有画面感。用简练、诗意但克制的语言让人物、色彩、动作和氛围可感，再自然落到问题本身。禁止「我看到」等套话。",
+                    "refine_relevance": "回应不够针对。结合牌的位置含义，更直接地回答用户原问题，不要写成泛泛的人生建议。",
+                    "refine_symbolism": "牌义融合度不够。请重点改善：把牌的传统象征意义（如元素、数字、符号）更自然地融入解读中。",
+                }
+                state["readings"] = _refine_with_focus(state, focus_map[decision])
+            elif decision == "force":
+                break
+            else:
+                # pass 或异常兜底，退出修正循环
+                break
 
         # ⑤ 综合叙事
         syn = synthesize(
@@ -761,20 +774,28 @@ class TarotAgent:
         )
         state["synthesis"] = syn
 
-        # ⑥ 生成建议
-        adv = generate_advice_list(
-            request.spread_type, request.question, request.cards,
-            state["readings"], state.get("synthesis"), state["is_sensitive"],
-            position_labels=state.get("position_labels"),
-            user_supplement=user_supplement,
-        )
-        state["advice"] = adv
+        # ⑥ 并行生成建议与摘要
+        def _gen_advice() -> list[str]:
+            return generate_advice_list(
+                request.spread_type, request.question, request.cards,
+                state["readings"], state.get("synthesis"), state["is_sensitive"],
+                position_labels=state.get("position_labels"),
+                user_supplement=user_supplement,
+            )
 
-        # ⑦ 生成摘要
-        sum_text = generate_summary(request.spread_type, request.question, state["readings"], state.get("synthesis"))
-        if state["is_sensitive"]:
-            sum_text = f"塔罗映照内心，但无法替代专业判断。{sum_text}"
-        state["summary"] = sum_text
+        def _gen_summary() -> str:
+            sum_text = generate_summary(
+                request.spread_type, request.question, state["readings"], state.get("synthesis"),
+            )
+            if state["is_sensitive"]:
+                sum_text = f"塔罗映照内心，但无法替代专业判断。{sum_text}"
+            return sum_text
+
+        with ThreadPoolExecutor(max_workers=2) as executor:
+            advice_future = executor.submit(_gen_advice)
+            summary_future = executor.submit(_gen_summary)
+            state["advice"] = advice_future.result()
+            state["summary"] = summary_future.result()
 
         return ReadingResponse(
             status="success",

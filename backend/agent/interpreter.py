@@ -46,7 +46,7 @@ def interpret_one_card(
         "必须参考牌义与牌面画面，不编造未给出的牌面元素。"
         "interpretation 要同时包含：①诗意但克制的牌面意象，让用户仿佛站在那张牌里；"
         "②紧扣用户问题或当前位置的启示，给出清晰、可落地的理解。"
-        "禁止使用「亲爱的」「我看到」「这段解读」等套话；不要寒暄、不要空泛安慰、不要过度抒情。"
+        "禁止使用「亲爱的」「我看到」「这段解读」「直接回答」「这张牌告诉你」等套话；不要寒暄、不要空泛安慰、不要过度抒情。"
     )
     prompt = ChatPromptTemplate.from_messages([
         ("system", system),
@@ -113,7 +113,7 @@ def synthesize(
         return None
 
     position_labels = position_labels or {}
-    llm = make_llm(512)
+    llm = make_llm(256)
     all_interp_lines = []
     for r in readings:
         label = position_labels.get(r.position, r.position)
@@ -151,7 +151,7 @@ def generate_summary(
     readings: list[CardReading],
     synthesis: str | None,
 ) -> str:
-    llm = make_llm(256)
+    llm = make_llm(96)
 
     if spread_type == "daily_card":
         prompt_text = (
@@ -195,7 +195,7 @@ def generate_advice_list(
     position_labels: dict[str, str] | None = None,
     user_supplement: str = "",
 ) -> list[str]:
-    llm = make_llm(512)
+    llm = make_llm(160)
 
     position_labels = position_labels or {}
     all_interp_lines = []
@@ -209,14 +209,14 @@ def generate_advice_list(
             f"用户问题：{question}\n"
             f"牌阵解读：\n{all_interp}\n"
             f"综合：{synthesis}\n"
-            f"给出 1-2 条简短可行的建议。"
+            f"给出 2-3 条简短可行的建议。"
             f'以 JSON 字符串数组格式返回，如：["建议1", "建议2"]'
         )
     elif spread_type == "daily_card":
         prompt_text = (
             f"今日牌：{cards[0].name_zh}（{'逆位' if cards[0].orientation == 'reversed' else '正位'}）\n"
             f"解读：{readings[0].interpretation}\n"
-            f"给出 1-2 条今日小建议。"
+            f"给出 2-3 条今日小建议。"
             f'以 JSON 字符串数组格式返回，如：["建议1", "建议2"]'
         )
     else:

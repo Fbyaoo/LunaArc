@@ -1,6 +1,8 @@
 """LLM 工具模块"""
 
 import os
+from functools import lru_cache
+
 from dotenv import load_dotenv
 from langchain_openai import ChatOpenAI
 
@@ -28,6 +30,7 @@ INTENT_LABEL: dict[str, str] = {
 }
 
 
+@lru_cache(maxsize=32)
 def make_llm(max_tokens: int = 512) -> ChatOpenAI:
     return ChatOpenAI(
         api_key=Config.OPENAI_API_KEY,
