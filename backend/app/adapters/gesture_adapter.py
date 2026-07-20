@@ -1,28 +1,38 @@
-from app.schemas.gesture import GestureAction
+from app.schemas.gesture import (
+    GestureAction,
+)
 
 
-GESTURE_MAPPING = {
-    "fist": "shuffle",
-    "one": "switch_spread",
-    "ok": "request_reading",
-    "peace": "reset",
+GESTURE_ACTION_MAP = {
+
+    "fist":
+        "shuffle",
+
+    "one":
+        "switch_spread",
+
+    "like":
+        "request_reading",
+
+    "peace":
+        "reset",
 }
 
 
 class GestureAdapter:
 
-    """
-    手势事件 -> 业务动作
-    """
 
     def convert(
         self,
         gesture: str,
     ) -> GestureAction:
 
-        action = GESTURE_MAPPING.get(
-            gesture,
-            "unknown",
+        action = (
+            GESTURE_ACTION_MAP
+            .get(
+                gesture,
+                "unknown",
+            )
         )
 
         return GestureAction(

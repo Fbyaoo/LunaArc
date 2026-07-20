@@ -10,7 +10,7 @@
 |---|---|
 | `fist` | 握拳 |
 | `one` | 食指向上 |
-| `ok` | OK 手势 |
+| `like` | OK 手势 |
 | `peace` | Peace 手势 |
 
 视觉模块不负责：
@@ -61,7 +61,7 @@ Agent
 from vision import VisionService
 
 vision_service = VisionService(
-    model_path="models/best_gesture.pt"
+    model_path="vision/model/best_gesture.pt"
 )
 
 events = vision_service.process_frame(
@@ -163,7 +163,7 @@ list[dict]
 ```text
 fist
 one
-ok
+like
 peace
 ```
 
@@ -208,7 +208,7 @@ yes
 |---|---|---|
 | `fist` | `shuffle` | 洗牌 |
 | `one` | `switch_spread` | 切换牌阵 |
-| `ok` | `request_reading` | 请求解读 |
+| `like` | `request_reading` | 请求解读 |
 | `peace` | `reset` | 重置流程 |
 
 视觉模块不应依赖这份业务映射。
@@ -222,7 +222,7 @@ yes
 默认模型路径：
 
 ```text
-models/best_gesture.pt
+vision/model/best_gesture.pt
 ```
 
 当前模型类别映射：
@@ -231,7 +231,7 @@ models/best_gesture.pt
 {
     0: "fist",
     1: "one",
-    2: "ok",
+    2: "like",
     3: "peace",
 }
 ```
@@ -260,12 +260,12 @@ vision/mappings.py
 
 ```json
 {
-  "gesture": "ok",
+  "gesture": "like",
   "confidence": 0.92
 }
 ```
 
-表示模型认为当前检测框属于 `ok` 手势的可信度约为 92%。
+表示模型认为当前检测框属于 `like` 手势的可信度约为 92%。
 
 不得返回百分数字符串：
 
@@ -329,7 +329,7 @@ confidence >= 0.75
 [
   {
     "type": "gesture_event",
-    "gesture": "ok",
+    "gesture": "like",
     "confidence": 0.91
   }
 ]
@@ -551,7 +551,7 @@ vision/
 from vision import VisionService
 
 vision_service = VisionService(
-    model_path="models/best_gesture.pt"
+    model_path="vision/model/best_gesture.pt"
 )
 
 events = vision_service.process_frame(

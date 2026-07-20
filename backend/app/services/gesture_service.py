@@ -1,16 +1,18 @@
-import time
+from vision import VisionService
 
-from app.schemas.gesture import GestureEvent
+from app.schemas.gesture import (
+    GestureEvent,
+)
 
 
 class GestureService:
 
-    """
-    手势识别服务。
 
-    当前 Mock。
-    后续替换为 YOLO GestureService。
-    """
+    def __init__(self):
+
+        self.vision_service = (
+            VisionService()
+        )
 
 
     def process_frame(
@@ -18,9 +20,19 @@ class GestureService:
         image_bytes: bytes,
     ) -> list[GestureEvent]:
 
-        # 当前模拟无稳定手势
+        events = (
+            self.vision_service
+            .process_frame(
+                image_bytes
+            )
+        )
 
-        return []
+        return [
+            GestureEvent.model_validate(
+                event
+            )
+            for event in events
+        ]
 
 
 gesture_service = GestureService()
