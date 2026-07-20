@@ -89,3 +89,75 @@ def login_user(
 
 
     return user
+
+
+from datetime import datetime
+
+from app.core.security import (
+    create_refresh_token,
+    hash_token,
+)
+
+from app.database.models import (
+    RefreshSession,
+)
+
+
+
+def create_refresh_session(
+    db,
+    user,
+):
+
+    token, expire = (
+        create_refresh_token(
+            str(user.id)
+        )
+    )
+
+
+    session = RefreshSession(
+
+        user_id=user.id,
+
+        token_hash=
+            hash_token(token),
+
+        expires_at=expire,
+
+    )
+
+
+    db.add(session)
+
+    db.commit()
+
+
+    return token
+
+
+
+def revoke_refresh(
+    db,
+    token,
+):
+
+    item = (
+        db.query(
+            RefreshSession
+        )
+        .filter(
+            RefreshSession.token_hash
+            ==
+            hash_token(token)
+        )
+        .first()
+    )
+
+
+    if item:
+
+        item.revoked=True
+
+        db.commit()
+
