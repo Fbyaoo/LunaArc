@@ -46,7 +46,7 @@ class CardReading(BaseModel):
 
 
 class ReadingResponse(BaseModel):
-    status: Literal["success"]
+    status: Literal["success", "awaiting_clarify"]
     summary: str
     card_readings: list[CardReading]
     synthesis: str | None = None

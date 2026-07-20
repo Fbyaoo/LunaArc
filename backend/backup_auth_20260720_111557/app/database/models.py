@@ -6,52 +6,6 @@ from sqlalchemy.orm import Mapped, mapped_column, relationship
 from app.database.connection import Base
 
 
-
-
-class User(Base):
-
-    __tablename__ = "users"
-
-    id: Mapped[int] = mapped_column(
-        Integer,
-        primary_key=True,
-    )
-
-    email: Mapped[str] = mapped_column(
-        String(320),
-        unique=True,
-        index=True,
-        nullable=False,
-    )
-
-    password_hash: Mapped[str] = mapped_column(
-        String(255),
-        nullable=False,
-    )
-
-    display_name: Mapped[str] = mapped_column(
-        String(80),
-        nullable=False,
-    )
-
-    plan: Mapped[str] = mapped_column(
-        String(20),
-        default="free",
-        nullable=False,
-    )
-
-    status: Mapped[str] = mapped_column(
-        String(20),
-        default="active",
-        nullable=False,
-    )
-
-    created_at: Mapped[datetime] = mapped_column(
-        DateTime,
-        default=datetime.utcnow,
-    )
-
-
 class Session(Base):
 
     __tablename__ = "sessions"
@@ -59,12 +13,6 @@ class Session(Base):
     id: Mapped[int] = mapped_column(
         Integer,
         primary_key=True,
-    )
-
-    user_id: Mapped[int | None] = mapped_column(
-        ForeignKey("users.id"),
-        nullable=True,
-        index=True,
     )
 
     question: Mapped[str | None] = mapped_column(
@@ -164,52 +112,4 @@ class Reading(Base):
     session = relationship(
         "Session",
         back_populates="reading",
-    )
-
-
-class UserUsage(Base):
-
-    __tablename__ = "user_usage"
-
-
-    id: Mapped[int] = mapped_column(
-        Integer,
-        primary_key=True,
-    )
-
-
-    user_id: Mapped[int] = mapped_column(
-        ForeignKey("users.id"),
-        nullable=False,
-        index=True,
-    )
-
-
-    usage_date: Mapped[datetime] = mapped_column(
-        DateTime,
-        default=datetime.utcnow,
-    )
-
-
-    daily_reading_count: Mapped[int] = mapped_column(
-        Integer,
-        default=0,
-    )
-
-
-    single_reading_count: Mapped[int] = mapped_column(
-        Integer,
-        default=0,
-    )
-
-
-    three_card_reading_count: Mapped[int] = mapped_column(
-        Integer,
-        default=0,
-    )
-
-
-    ai_message_count: Mapped[int] = mapped_column(
-        Integer,
-        default=0,
     )

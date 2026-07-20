@@ -1,4 +1,8 @@
+from fastapi import Depends
 from fastapi import APIRouter, HTTPException, status
+
+from app.dependencies.auth import get_current_user
+from app.database.models import User
 
 from app.schemas.readings import ReadingRequest, ReadingResponse
 from app.adapters.agent_adapter import (
@@ -23,6 +27,7 @@ router = APIRouter(
 @router.post("", response_model=ReadingResponse)
 def create_reading_api(
     request: ReadingRequest,
+    current_user: User = Depends(get_current_user),
 ) -> ReadingResponse:
 
     expected_card_counts = {
@@ -94,6 +99,7 @@ def create_reading_api(
 
         session = create_session(
             db=db,
+            user_id=current_user.id,
             question=request.question,
             spread_type=request.spread_type,
         )

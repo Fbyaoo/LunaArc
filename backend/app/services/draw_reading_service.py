@@ -11,6 +11,7 @@ from app.schemas.readings import (
     ReadingRequest,
 )
 from app.services.draw_service import draw_service
+from app.services.usage_service import consume_reading
 
 
 class DrawReadingRequestError(ValueError):
@@ -31,6 +32,7 @@ class DrawReadingService:
         self,
         question: str | None,
         spread_type: SpreadType,
+        user=None,
     ) -> dict:
         normalized_question = (
             question.strip()
@@ -84,6 +86,11 @@ class DrawReadingService:
                 db=db,
                 question=normalized_question,
                 spread_type=spread_type,
+                user_id=(
+                    user.id
+                    if user is not None
+                    else None
+                ),
             )
 
             create_cards(
@@ -99,6 +106,13 @@ class DrawReadingService:
                 synthesis=reading.synthesis,
                 advice=reading.advice,
             )
+
+            if user is not None:
+                consume_reading(
+                    db=db,
+                    user=user,
+                    spread_type=spread_type,
+                )
 
         except Exception:
             db.rollback()

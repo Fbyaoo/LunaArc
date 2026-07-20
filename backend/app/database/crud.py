@@ -11,9 +11,11 @@ def create_session(
     db: Session,
     question: str | None,
     spread_type: str,
+    user_id: int | None = None,
 ):
 
     session = SessionModel(
+        user_id=user_id,
         question=question,
         spread_type=spread_type,
     )

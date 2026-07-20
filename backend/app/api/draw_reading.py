@@ -1,4 +1,5 @@
 from fastapi import (
+    Depends,
     APIRouter,
     HTTPException,
     status,
@@ -8,6 +9,9 @@ from sqlalchemy.exc import SQLAlchemyError
 from app.adapters.agent_adapter import (
     AgentIntegrationError,
 )
+from app.dependencies.auth import get_current_user
+from app.database.models import User
+
 from app.schemas.draw_reading import (
     DrawReadingRequest,
     DrawReadingResponse,
@@ -30,11 +34,13 @@ router = APIRouter(
 )
 def draw_and_read(
     request: DrawReadingRequest,
+    current_user: User = Depends(get_current_user),
 ) -> DrawReadingResponse:
     try:
         return draw_reading_service.execute(
             question=request.question,
             spread_type=request.spread_type,
+            user=current_user,
         )
 
     except DrawReadingRequestError as error:
