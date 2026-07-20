@@ -1,5 +1,90 @@
 # LunaArc Agent 对接协议
 
+## 0. 最终牌阵与 Position 协议
+
+Backend 传给 Agent 的 `position` 统一使用字符串序号。
+
+| spread_type | 牌数 | position（必须） |
+|---|---:|---|
+| `daily_card` | 1 | `"1"` |
+| `single_card` | 1 | `"1"` |
+| `three_card` | 3 | `"1"`、`"2"`、`"3"` |
+
+### daily_card 示例
+
+```json
+{
+  "question": null,
+  "spread_type": "daily_card",
+  "cards": [
+    {
+      "card_id": "major_00",
+      "name_zh": "愚者",
+      "position": "1",
+      "orientation": "upright"
+    }
+  ],
+  "user_history": null
+}
+```
+
+### single_card 示例
+
+```json
+{
+  "question": "我现在最需要关注什么？",
+  "spread_type": "single_card",
+  "cards": [
+    {
+      "card_id": "major_07",
+      "name_zh": "战车",
+      "position": "1",
+      "orientation": "reversed"
+    }
+  ],
+  "user_history": null
+}
+```
+
+### three_card 示例
+
+```json
+{
+  "question": "最近工作发展如何？",
+  "spread_type": "three_card",
+  "cards": [
+    {
+      "card_id": "major_07",
+      "name_zh": "战车",
+      "position": "1",
+      "orientation": "reversed"
+    },
+    {
+      "card_id": "major_17",
+      "name_zh": "星星",
+      "position": "2",
+      "orientation": "upright"
+    },
+    {
+      "card_id": "major_19",
+      "name_zh": "太阳",
+      "position": "3",
+      "orientation": "upright"
+    }
+  ],
+  "user_history": null
+}
+```
+
+`position` 只用于区分卡牌顺序。
+
+Agent 内部负责把序号转换为语义化位置。
+
+如果本文档其他位置存在旧的 `daily_guidance`、`core`、`past`、`present` 或 `future` 示例，以本节规则为准。
+
+---
+
+
 ## 1. 协议目的
 
 本文档定义 LunaArc Backend 与 Tarot Agent 之间的最终对接方式。
@@ -275,19 +360,19 @@ three_card
     {
       "card_id": "major_07",
       "name_zh": "战车",
-      "position": "past",
+      "position": "1",
       "orientation": "reversed"
     },
     {
       "card_id": "major_17",
       "name_zh": "星星",
-      "position": "present",
+      "position": "2",
       "orientation": "upright"
     },
     {
       "card_id": "major_19",
       "name_zh": "太阳",
-      "position": "future",
+      "position": "3",
       "orientation": "upright"
     }
   ],
