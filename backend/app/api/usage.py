@@ -1,5 +1,3 @@
-from datetime import date
-
 from fastapi import (
     APIRouter,
     Depends,
@@ -18,85 +16,84 @@ from app.dependencies.auth import (
 )
 
 
-router = APIRouter(
+router=APIRouter(
     prefix="/api/usage",
-    tags=["usage"],
+    tags=["usage"]
 )
 
 
 
 @router.get("/me")
-def get_usage(
-    user: User = Depends(
+def usage(
+    user:User=Depends(
         get_current_user
     ),
-
-    db: Session = Depends(
+    db:Session=Depends(
         get_db
     ),
 ):
 
-    usage = (
-        db.query(UserUsage)
+    item=(
+        db.query(
+            UserUsage
+        )
         .filter(
             UserUsage.user_id
-            == user.id
+            ==
+            user.id
         )
         .first()
     )
 
 
-    if usage is None:
+    used=0
 
-        return {
+    if item:
 
-            "usage_date":
-                str(date.today()),
-
-            "daily_reading_limit":
-                user.daily_reading_limit
-                if hasattr(
-                    user,
-                    "daily_reading_limit"
-                )
-                else 3,
-
-            "daily_reading_used":
-                0,
-
-            "free_readings_remaining":
-                3,
-
-        }
+        used=(
+            item.daily_reading_count
+            +
+            item.single_reading_count
+            +
+            item.three_card_reading_count
+        )
 
 
-    used = (
-        usage.daily_reading_count
-        +
-        usage.single_reading_count
-        +
-        usage.three_card_reading_count
-    )
-
-
-    limit = 3
+    limit=3
 
 
     return {
 
         "usage_date":
-            str(usage.usage_date),
+            str(item.usage_date)
+            if item
+            else None,
+
 
         "daily_reading_limit":
-            limit,
+            None
+            if user.plan=="plus"
+            else limit,
+
 
         "daily_reading_used":
             used,
 
+
         "free_readings_remaining":
-            max(
-                limit - used,
+            None
+            if user.plan=="plus"
+            else max(
+                limit-used,
                 0
             ),
+
+
+        "ai_message_limit":
+            None,
+
+
+        "ai_message_used":
+            0,
 
     }

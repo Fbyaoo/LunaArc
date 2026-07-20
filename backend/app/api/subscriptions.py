@@ -1,25 +1,21 @@
-from fastapi import (
-    APIRouter,
-    Depends,
-)
+from fastapi import APIRouter, Depends
 
 from app.database.models import User
-from app.dependencies.auth import (
-    get_current_user,
-)
+from app.dependencies.auth import get_current_user
 
 
-router = APIRouter(
+router=APIRouter(
     prefix="/api/subscriptions",
-    tags=["subscriptions"],
+    tags=["subscriptions"]
 )
+
 
 
 @router.get("/me")
-def get_subscription(
-    user: User = Depends(
+def subscription(
+    user:User=Depends(
         get_current_user
-    ),
+    )
 ):
 
     return {
@@ -27,16 +23,19 @@ def get_subscription(
         "plan":
             user.plan,
 
+
         "plan_label":
             (
-                "LunaArc Plus"
-                if user.plan == "plus"
-                else "Free Plan"
+            "LunaArc Plus"
+            if user.plan=="plus"
+            else "Free Plan"
             ),
 
+
         "status":
-            user.status,
+            "active",
+
 
         "renewal_date":
-            None,
+            None
     }

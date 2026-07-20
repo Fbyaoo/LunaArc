@@ -1,10 +1,5 @@
-jwt_secret_key: str = "change-me"
-jwt_algorithm: str = "HS256"
 
-access_token_minutes: int = 30
-refresh_token_days: int = 30
 
-default_daily_reading_limit: int = 3
 from functools import lru_cache
 from typing import Literal
 
@@ -12,6 +7,22 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
 class Settings(BaseSettings):
+
+    # =====================
+    # Authentication
+    # =====================
+
+    jwt_secret_key: str = "change-me"
+
+    jwt_algorithm: str = "HS256"
+
+    access_token_minutes: int = 30
+
+    refresh_token_days: int = 30
+
+    default_daily_reading_limit: int = 3
+
+
     app_name: str = "LunaArc Backend"
     app_version: str = "0.1.0"
 
