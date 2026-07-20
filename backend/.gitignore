@@ -11,3 +11,11 @@ backup_auth_*/
 __pycache__/
 .pytest_cache/
 *.pyc
+# Local secrets
+.env.*
+!.env.example
+cookies.txt
+cookies*.txt
+# Local databases and backups
+.auth_p0_backup/
+# Python
