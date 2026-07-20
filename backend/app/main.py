@@ -6,6 +6,15 @@ from app.api.draw_reading import router as draw_reading_router
 
 from app.api.auth import router as auth_router
 from app.api.users import router as users_router
+
+from app.api.subscriptions import (
+    router as subscriptions_router
+)
+
+from app.api.usage import (
+    router as usage_router
+)
+
 from app.api.cards import router as cards_router
 from app.api.detection import router as detection_router
 from app.api.readings import router as readings_router
@@ -33,7 +42,17 @@ app.add_middleware(
 
 app.include_router(auth_router)
 app.include_router(users_router)
+
+app.include_router(
+    subscriptions_router
+)
+
+app.include_router(
+    usage_router
+)
+
 app.include_router(cards_router)
+
 app.include_router(detection_router)
 app.include_router(readings_router)
 app.include_router(clarify_router)

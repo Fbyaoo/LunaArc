@@ -1,3 +1,5 @@
+from sqlalchemy.orm import Session
+
 from fastapi import (
     Depends,
     APIRouter,
@@ -11,6 +13,7 @@ from app.adapters.agent_adapter import (
 )
 from app.dependencies.auth import get_current_user
 from app.database.models import User
+from app.database.connection import get_db
 
 from app.schemas.draw_reading import (
     DrawReadingRequest,
@@ -35,12 +38,14 @@ router = APIRouter(
 def draw_and_read(
     request: DrawReadingRequest,
     current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
 ) -> DrawReadingResponse:
     try:
         return draw_reading_service.execute(
             question=request.question,
             spread_type=request.spread_type,
             user=current_user,
+            db=db,
         )
 
     except DrawReadingRequestError as error:

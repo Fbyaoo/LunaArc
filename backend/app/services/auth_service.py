@@ -161,3 +161,29 @@ def revoke_refresh(
 
         db.commit()
 
+
+
+def revoke_refresh_session(
+    db,
+    token,
+):
+
+    session = (
+        db.query(
+            RefreshSession
+        )
+        .filter(
+            RefreshSession.token_hash
+            ==
+            hash_token(token)
+        )
+        .first()
+    )
+
+
+    if session:
+
+        session.revoked = True
+
+        db.commit()
+

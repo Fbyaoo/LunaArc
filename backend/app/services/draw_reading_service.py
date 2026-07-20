@@ -1,3 +1,5 @@
+from sqlalchemy.orm import Session
+
 from app.adapters.agent_adapter import agent_adapter
 from app.database.connection import SessionLocal
 from app.database.crud import (
@@ -33,6 +35,7 @@ class DrawReadingService:
         question: str | None,
         spread_type: SpreadType,
         user=None,
+        db: Session | None = None,
     ) -> dict:
         normalized_question = (
             question.strip()
