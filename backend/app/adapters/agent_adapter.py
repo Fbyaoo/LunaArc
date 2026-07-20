@@ -103,6 +103,84 @@ class AgentAdapter:
 
         return self._generate_mock(request)
 
+
+
+    def resume_reading(
+        self,
+        request: ReadingRequest,
+        user_supplement: str,
+    ) -> ReadingResponse:
+
+        settings = get_settings()
+
+        if settings.agent_mode == "real":
+
+            (
+                _,
+                AgentReadingRequest,
+                AgentDrawnCard,
+            ) = _load_real_agent_symbols()
+
+
+            agent_cards = [
+                AgentDrawnCard(
+                    card_id=card.card_id,
+                    name_zh=card.name_zh,
+                    position=card.position,
+                    orientation=card.orientation,
+                )
+                for card in request.cards
+            ]
+
+
+            agent_request = AgentReadingRequest(
+                question=request.question,
+                spread_type=request.spread_type,
+                cards=agent_cards,
+                user_history=request.user_history,
+            )
+
+
+            result = (
+                _get_real_agent()
+                .resume_reading(
+                    agent_request,
+                    user_supplement,
+                )
+            )
+
+
+            return _convert_agent_result(
+                result
+            )
+
+
+        enriched_cards = [
+            enrich_card(card)
+            for card in request.cards
+        ]
+
+
+        mock_request = {
+            "question": request.question,
+            "spread_type": request.spread_type,
+            "cards": [
+                card.model_dump()
+                for card in enriched_cards
+            ],
+            "user_history": request.user_history,
+        }
+
+
+        return (
+            mock_tarot_agent
+            .resume_reading(
+                mock_request,
+                user_supplement,
+            )
+        )
+
+
     def _generate_real(
         self,
         request: ReadingRequest,
