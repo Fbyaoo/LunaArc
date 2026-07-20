@@ -195,6 +195,7 @@ def logout(
 @router.post("/register")
 def register(
     body: RegisterRequest,
+    response: Response,
     db: Session = Depends(get_db),
 ):
 
