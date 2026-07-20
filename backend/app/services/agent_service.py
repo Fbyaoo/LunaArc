@@ -1,3 +1,4 @@
+
 from app.schemas.readings import (
     CardReading,
     ReadingResponse,
@@ -5,14 +6,6 @@ from app.schemas.readings import (
 
 
 class TarotAgent:
-    """
-    Mock Agent。
-
-    后续真实 Agent 接入时，
-    替换这里即可。
-
-    当前输入已经包含完整牌义信息。
-    """
 
 
     def generate_reading(
@@ -21,12 +14,77 @@ class TarotAgent:
     ) -> ReadingResponse:
 
 
-        cards = request["cards"]
+        question = (
+            request.get("question")
+            or ""
+        )
 
 
-        card_readings = []
+        if (
+            request["spread_type"]
+            == "three_card"
+            and question.strip()
+            in [
+                "我该怎么办",
+                "我该怎么办？",
+                "怎么办",
+            ]
+        ):
 
-        for card in cards:
+            return ReadingResponse(
+
+                status="awaiting_clarify",
+
+                summary=(
+                    "你的问题比较宽泛，"
+                    "请补充你想关注的具体方向。"
+                ),
+
+                card_readings=[],
+
+                synthesis=None,
+
+                advice=[],
+            )
+
+
+        return self._success(
+            request
+        )
+
+
+
+    def resume_reading(
+        self,
+        request: dict,
+        user_supplement: str,
+    ) -> ReadingResponse:
+
+
+        request["question"] = (
+            request.get("question", "")
+            +
+            " "
+            +
+            user_supplement
+        )
+
+
+        return self._success(
+            request
+        )
+
+
+
+    def _success(
+        self,
+        request,
+    ):
+
+        readings = []
+
+
+        for card in request["cards"]:
 
             orientation = (
                 "正位"
@@ -34,33 +92,24 @@ class TarotAgent:
                 else "逆位"
             )
 
-
             symbolism = "、".join(
-                card["core_symbolism"]
-            )
-
-
-            interpretation = (
-                f'{card["name_zh"]}以{orientation}出现。'
-                f'核心象征包括：{symbolism}。'
-                "这里暂时返回 Mock 解读。"
-            )
-
-
-            card_readings.append(
-                CardReading(
-                    card_id=card["card_id"],
-                    position=card["position"],
-                    interpretation=interpretation,
+                card.get(
+                    "core_symbolism",
+                    []
                 )
             )
 
-
-        synthesis = None
-
-        if len(cards) > 1:
-            synthesis = (
-                "这些卡牌共同反映了当前问题的发展过程和可能趋势。"
+            readings.append(
+                CardReading(
+                    card_id=card["card_id"],
+                    position=card["position"],
+                    interpretation=(
+                        f'{card["name_zh"]}'
+                        f"以{orientation}出现。"
+                        f"核心象征包括：{symbolism}。"
+                        "这里暂时返回 Mock 解读。"
+                    ),
+                )
             )
 
 
@@ -68,17 +117,18 @@ class TarotAgent:
 
             status="success",
 
-            summary=(
-                "这是基于完整塔罗牌信息生成的 Mock 解读结果。"
+            summary="Mock 塔罗解读结果。",
+
+            card_readings=readings,
+
+            synthesis=(
+                "三张牌综合趋势。"
+                if len(readings) > 1
+                else None
             ),
 
-            card_readings=card_readings,
-
-            synthesis=synthesis,
-
             advice=[
-                "结合现实情况审视自己的选择。",
-                "不要仅依靠塔罗作出重要决定。",
+                "结合现实情况判断。"
             ],
         )
 
