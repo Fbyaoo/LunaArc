@@ -6,3 +6,8 @@ __pycache__/
 
 .env
 lunaarc.db
+*.db
+backup_auth_*/
+__pycache__/
+.pytest_cache/
+*.pyc
