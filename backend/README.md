@@ -99,10 +99,6 @@ docker run --env-file .env -p 8000:8000 lunaarc-backend
 
 容器启动时会先执行数据库迁移，再启动 API。
 
-默认镜像包含真实 Agent 依赖。需要手势推理时构建完整视觉镜像：
-
-```bash
-docker build --build-arg INSTALL_VISION=true -t lunaarc-backend-vision .
-```
+默认镜像包含真实 Agent、手势视觉和开发检查依赖。
 
 卡牌视觉的 Real 模式遵循 `docs/vision_contract.md`，并要求视觉模块提供 `vision.detector.TarotCardDetector`；仓库当前模型只用于手势识别。

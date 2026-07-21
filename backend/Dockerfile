@@ -1,17 +1,37 @@
 FROM python:3.12-slim
 
-ARG INSTALL_VISION=false
-
 WORKDIR /app
 
-COPY requirements.txt .
-COPY agent/requirements.txt ./agent-requirements.txt
-COPY vision/requirements.txt ./vision-requirements.txt
+ENV PYTHONDONTWRITEBYTECODE=1 \
+    PYTHONUNBUFFERED=1
 
-RUN pip install --no-cache-dir -r requirements.txt -r agent-requirements.txt \
-    && if [ "$INSTALL_VISION" = "true" ]; then \
-         pip install --no-cache-dir -r vision-requirements.txt; \
-       fi
+# 配置apt源
+RUN sed -i \
+        -e 's|deb.debian.org/debian-security|mirrors.aliyun.com/debian-security|g' \
+        -e 's|deb.debian.org/debian|mirrors.aliyun.com/debian|g' \
+        /etc/apt/sources.list.d/*.sources \
+    && apt-get update \
+    && apt-get install -y --no-install-recommends \
+        libglib2.0-0 \
+        libgl1 \
+        libsm6 \
+        libxext6 \
+        libxrender1 \
+    && rm -rf /var/lib/apt/lists/*
+
+# 🔥 改用清华源（更稳定）并使用 HTTP
+RUN pip config set global.index-url http://pypi.tuna.tsinghua.edu.cn/simple && \
+    pip config set global.trusted-host pypi.tuna.tsinghua.edu.cn
+
+COPY requirements.txt requirements-dev.txt ./
+COPY vision/requirements.txt /tmp/vision-requirements.txt
+COPY agent/requirements.txt /tmp/agent-requirements.txt
+
+# 分层安装
+RUN pip install --no-cache-dir -r requirements.txt
+RUN pip install --no-cache-dir -r requirements-dev.txt
+RUN pip install --no-cache-dir -r /tmp/vision-requirements.txt
+RUN pip install --no-cache-dir -r /tmp/agent-requirements.txt
 
 COPY alembic.ini ./
 COPY migrations ./migrations
