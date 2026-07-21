@@ -51,3 +51,9 @@ class ReadingResponse(BaseModel):
     card_readings: list[CardReading]
     synthesis: str | None = None
     advice: list[str]
+    session_id: str | None = None
+
+
+class ClarifyRequest(BaseModel):
+    session_id: str
+    user_supplement: str

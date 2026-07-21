@@ -7,16 +7,10 @@ from app.schemas.readings import (
 )
 
 
-DATA_FILE = (
-    Path(__file__).resolve()
-    .parent.parent
-    / "data"
-    / "tarot_cards.json"
-)
+DATA_FILE = Path(__file__).resolve().parent.parent / "data" / "tarot_cards.json"
 
 
 def load_cards():
-
     with DATA_FILE.open(
         "r",
         encoding="utf-8",
@@ -24,28 +18,18 @@ def load_cards():
         return json.load(file)
 
 
-
 def enrich_card(
     card: DrawnCard,
 ) -> EnrichedCard:
-
     cards = load_cards()
 
     target = next(
-        (
-            item
-            for item in cards
-            if item["card_id"] == card.card_id
-        ),
+        (item for item in cards if item["card_id"] == card.card_id),
         None,
     )
 
-
     if target is None:
-        raise ValueError(
-            f"Unknown card: {card.card_id}"
-        )
-
+        raise ValueError(f"Unknown card: {card.card_id}")
 
     return EnrichedCard(
         card_id=card.card_id,

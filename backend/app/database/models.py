@@ -1,4 +1,4 @@
-from datetime import datetime
+from datetime import UTC, datetime
 
 from sqlalchemy import Boolean, DateTime, Float, ForeignKey, Integer, String, Text
 from sqlalchemy.orm import Mapped, mapped_column, relationship
@@ -6,10 +6,11 @@ from sqlalchemy.orm import Mapped, mapped_column, relationship
 from app.database.connection import Base
 
 
+def utc_now() -> datetime:
+    return datetime.now(UTC).replace(tzinfo=None)
 
 
 class User(Base):
-
     __tablename__ = "users"
 
     id: Mapped[int] = mapped_column(
@@ -47,7 +48,7 @@ class User(Base):
 
     updated_at: Mapped[datetime] = mapped_column(
         DateTime,
-        default=datetime.utcnow,
+        default=utc_now,
     )
 
     last_login_at: Mapped[datetime | None] = mapped_column(
@@ -69,12 +70,11 @@ class User(Base):
 
     created_at: Mapped[datetime] = mapped_column(
         DateTime,
-        default=datetime.utcnow,
+        default=utc_now,
     )
 
 
 class Session(Base):
-
     __tablename__ = "sessions"
 
     id: Mapped[int] = mapped_column(
@@ -100,7 +100,7 @@ class Session(Base):
 
     created_at: Mapped[datetime] = mapped_column(
         DateTime,
-        default=datetime.utcnow,
+        default=utc_now,
     )
 
     cards = relationship(
@@ -116,7 +116,6 @@ class Session(Base):
 
 
 class DrawnCard(Base):
-
     __tablename__ = "drawn_cards"
 
     id: Mapped[int] = mapped_column(
@@ -152,7 +151,6 @@ class DrawnCard(Base):
 
 
 class Reading(Base):
-
     __tablename__ = "readings"
 
     id: Mapped[int] = mapped_column(
@@ -179,7 +177,7 @@ class Reading(Base):
 
     created_at: Mapped[datetime] = mapped_column(
         DateTime,
-        default=datetime.utcnow,
+        default=utc_now,
     )
 
     session = relationship(
@@ -189,46 +187,39 @@ class Reading(Base):
 
 
 class UserUsage(Base):
-
     __tablename__ = "user_usage"
-
 
     id: Mapped[int] = mapped_column(
         Integer,
         primary_key=True,
     )
 
-
     user_id: Mapped[int] = mapped_column(
         ForeignKey("users.id"),
         nullable=False,
         index=True,
+        unique=True,
     )
-
 
     usage_date: Mapped[datetime] = mapped_column(
         DateTime,
-        default=datetime.utcnow,
+        default=utc_now,
     )
-
 
     daily_reading_count: Mapped[int] = mapped_column(
         Integer,
         default=0,
     )
 
-
     single_reading_count: Mapped[int] = mapped_column(
         Integer,
         default=0,
     )
 
-
     three_card_reading_count: Mapped[int] = mapped_column(
         Integer,
         default=0,
     )
-
 
     ai_message_count: Mapped[int] = mapped_column(
         Integer,
@@ -237,15 +228,12 @@ class UserUsage(Base):
 
 
 class RefreshSession(Base):
-
     __tablename__ = "refresh_sessions"
-
 
     id: Mapped[int] = mapped_column(
         Integer,
         primary_key=True,
     )
-
 
     user_id: Mapped[int] = mapped_column(
         ForeignKey("users.id"),
@@ -253,64 +241,39 @@ class RefreshSession(Base):
         index=True,
     )
 
-
     token_hash: Mapped[str] = mapped_column(
         String(255),
         unique=True,
         nullable=False,
     )
 
-
     expires_at: Mapped[datetime] = mapped_column(
         DateTime,
         nullable=False,
     )
-
 
     revoked: Mapped[bool] = mapped_column(
         Boolean,
         default=False,
     )
 
-
     created_at: Mapped[datetime] = mapped_column(
         DateTime,
-        default=datetime.utcnow,
+        default=utc_now,
     )
-
 
 
 class Subscription(Base):
+    __tablename__ = "subscriptions"
 
-    __tablename__="subscriptions"
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
 
-
-    id: Mapped[int]=mapped_column(
-        Integer,
-        primary_key=True
+    user_id: Mapped[int] = mapped_column(
+        ForeignKey("users.id"), nullable=False, index=True, unique=True
     )
 
+    plan: Mapped[str] = mapped_column(String(20), default="free")
 
-    user_id: Mapped[int]=mapped_column(
-        ForeignKey("users.id"),
-        nullable=False,
-        index=True
-    )
+    status: Mapped[str] = mapped_column(String(20), default="active")
 
-
-    plan: Mapped[str]=mapped_column(
-        String(20),
-        default="free"
-    )
-
-
-    status: Mapped[str]=mapped_column(
-        String(20),
-        default="active"
-    )
-
-
-    renewal_date: Mapped[datetime|None]=mapped_column(
-        DateTime,
-        nullable=True
-    )
+    renewal_date: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)

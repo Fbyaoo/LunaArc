@@ -55,10 +55,7 @@ def test_three_card_draw() -> None:
     assert data["spread_type"] == "three_card"
     assert len(data["cards"]) == 3
 
-    positions = [
-        card["position"]
-        for card in data["cards"]
-    ]
+    positions = [card["position"] for card in data["cards"]]
 
     assert positions == [
         "1",

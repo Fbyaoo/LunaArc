@@ -1,7 +1,6 @@
 from sqlalchemy.orm import Session
 
 from app.adapters.agent_adapter import agent_adapter
-from app.database.connection import SessionLocal
 from app.database.crud import (
     create_cards,
     create_reading,
@@ -14,6 +13,8 @@ from app.schemas.readings import (
 )
 from app.services.draw_service import draw_service
 from app.services.usage_service import consume_reading
+from app.services.quota_service import check_reading_quota
+from app.services.clarify_cache import save_request
 
 
 class DrawReadingRequestError(ValueError):
@@ -38,25 +39,24 @@ class DrawReadingService:
         db: Session | None = None,
     ) -> dict:
         normalized_question = (
-            question.strip()
-            if question is not None
-            and question.strip()
-            else None
+            question.strip() if question is not None and question.strip() else None
         )
 
-        if (
-            spread_type != "daily_card"
-            and normalized_question is None
-        ):
+        if spread_type != "daily_card" and normalized_question is None:
             raise DrawReadingRequestError(
                 error_code="EMPTY_QUESTION",
                 message="请输入你想询问的问题。",
             )
 
+        if db is None:
+            raise RuntimeError("draw-and-read requires a database session")
+
+        quota_reserved = False
+        if user is not None:
+            quota_reserved = check_reading_quota(db, user, spread_type)
+
         # 1. 根据牌阵抽牌
-        cards = draw_service.draw(
-            spread_type
-        )
+        cards = draw_service.draw(spread_type)
 
         # 2. 转成 Backend ReadingRequest
         reading_cards = [
@@ -77,23 +77,21 @@ class DrawReadingService:
         )
 
         # 3. 调用 Mock 或真实 Agent
-        reading = agent_adapter.generate_reading(
-            reading_request
-        )
+        reading = agent_adapter.generate_reading(reading_request)
+
+        if reading.status == "awaiting_clarify":
+            if user is None:
+                raise RuntimeError("clarification requires an authenticated user")
+            reading.session_id = save_request(reading_request, user.id)
+            return {"cards": cards, "reading": reading}
 
         # 4. 保存占卜会话、卡牌和解读
-        db = SessionLocal()
-
         try:
             session = create_session(
                 db=db,
                 question=normalized_question,
                 spread_type=spread_type,
-                user_id=(
-                    user.id
-                    if user is not None
-                    else None
-                ),
+                user_id=(user.id if user is not None else None),
             )
 
             create_cards(
@@ -110,19 +108,18 @@ class DrawReadingService:
                 advice=reading.advice,
             )
 
-            if user is not None:
+            if user is not None and not quota_reserved:
                 consume_reading(
                     db=db,
                     user=user,
                     spread_type=spread_type,
                 )
 
+            db.commit()
+
         except Exception:
             db.rollback()
             raise
-
-        finally:
-            db.close()
 
         return {
             "cards": cards,

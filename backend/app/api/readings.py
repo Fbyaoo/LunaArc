@@ -10,12 +10,16 @@ from app.adapters.agent_adapter import (
     agent_adapter,
 )
 
-from app.database.connection import SessionLocal
+from sqlalchemy.orm import Session
+from app.database.connection import get_db
 from app.database.crud import (
     create_session,
     create_cards,
     create_reading,
 )
+from app.services.quota_service import check_reading_quota
+from app.services.usage_service import consume_reading
+from app.services.clarify_cache import save_request
 
 
 router = APIRouter(
@@ -28,22 +32,17 @@ router = APIRouter(
 def create_reading_api(
     request: ReadingRequest,
     current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
 ) -> ReadingResponse:
-
     expected_card_counts = {
         "daily_card": 1,
         "single_card": 1,
         "three_card": 3,
     }
 
-
-    expected_count = expected_card_counts[
-        request.spread_type
-    ]
-
+    expected_count = expected_card_counts[request.spread_type]
 
     if len(request.cards) != expected_count:
-
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail={
@@ -55,11 +54,8 @@ def create_reading_api(
             },
         )
 
-
     if request.spread_type != "daily_card":
-
         if request.question is None or not request.question.strip():
-
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
                 detail={
@@ -68,12 +64,11 @@ def create_reading_api(
                 },
             )
 
+    quota_reserved = check_reading_quota(db, current_user, request.spread_type)
 
     # 1. 调用 Agent
     try:
-        result = agent_adapter.generate_reading(
-            request
-        )
+        result = agent_adapter.generate_reading(request)
     except ValueError as error:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
@@ -91,12 +86,12 @@ def create_reading_api(
             },
         ) from error
 
+    if result.status == "awaiting_clarify":
+        result.session_id = save_request(request, current_user.id)
+        return result
 
     # 2. 保存数据库
-    db = SessionLocal()
-
     try:
-
         session = create_session(
             db=db,
             user_id=current_user.id,
@@ -104,13 +99,11 @@ def create_reading_api(
             spread_type=request.spread_type,
         )
 
-
         create_cards(
             db=db,
             session_id=session.id,
             cards=request.cards,
         )
-
 
         create_reading(
             db=db,
@@ -120,10 +113,12 @@ def create_reading_api(
             advice=result.advice,
         )
 
+        if not quota_reserved:
+            consume_reading(db, current_user, request.spread_type)
+        db.commit()
 
-    finally:
-
-        db.close()
-
+    except Exception:
+        db.rollback()
+        raise
 
     return result

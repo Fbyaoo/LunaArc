@@ -4,7 +4,6 @@ from pydantic import BaseModel
 
 
 class SubscriptionResponse(BaseModel):
-
     plan: str
 
     plan_label: str

@@ -1,4 +1,3 @@
-
 from fastapi import (
     Depends,
     HTTPException,
@@ -19,59 +18,26 @@ security = HTTPBearer()
 
 
 def get_current_user(
-    credentials:
-    HTTPAuthorizationCredentials
-    = Depends(security),
-
-    db: Session
-    = Depends(get_db),
+    credentials: HTTPAuthorizationCredentials = Depends(security),
+    db: Session = Depends(get_db),
 ):
-
     try:
+        payload = decode_token(credentials.credentials)
 
-        payload = decode_token(
-            credentials.credentials
-        )
+        if payload.get("type") != "access":
+            raise ValueError("invalid token type")
 
     except Exception:
-
         raise HTTPException(
-            status_code=
-            status.HTTP_401_UNAUTHORIZED,
-
-            detail={
-                "error_code":
-                "UNAUTHORIZED",
-
-                "message":
-                "请重新登录。"
-            }
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail={"error_code": "UNAUTHORIZED", "message": "请重新登录。"},
         )
 
+    user_id = int(payload["sub"])
 
-    user_id = int(
-        payload["sub"]
-    )
+    user = db.query(User).filter(User.id == user_id).first()
 
-
-    user = (
-        db.query(User)
-        .filter(
-            User.id == user_id
-        )
-        .first()
-    )
-
-
-    if user is None:
-
-        raise HTTPException(
-            status_code=401,
-            detail={
-                "error_code":
-                "UNAUTHORIZED"
-            }
-        )
-
+    if user is None or user.status != "active":
+        raise HTTPException(status_code=401, detail={"error_code": "UNAUTHORIZED"})
 
     return user

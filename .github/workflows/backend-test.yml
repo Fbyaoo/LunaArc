@@ -20,7 +20,7 @@ jobs:
       - name: Setup Python
         uses: actions/setup-python@v5
         with:
-          python-version: "3.13"
+          python-version: "3.12"
 
       - name: Install dependencies
         working-directory: backend
@@ -32,3 +32,22 @@ jobs:
         working-directory: backend
         run: |
           python -m pytest -q
+          python -m unittest -q vision.test.test_gesture_contract
+
+      - name: Lint and format check
+        working-directory: backend
+        run: |
+          ruff check app tests migrations
+          ruff format --check app tests migrations
+
+      - name: Validate migrations
+        working-directory: backend
+        env:
+          DATABASE_URL: sqlite:///./ci-migration.db
+        run: |
+          alembic upgrade head
+          alembic check
+
+      - name: Compile application
+        working-directory: backend
+        run: python -m compileall -q app agent vision

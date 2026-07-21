@@ -13,7 +13,6 @@ def create_session(
     spread_type: str,
     user_id: int | None = None,
 ):
-
     session = SessionModel(
         user_id=user_id,
         question=question,
@@ -21,11 +20,9 @@ def create_session(
     )
 
     db.add(session)
-    db.commit()
-    db.refresh(session)
+    db.flush()
 
     return session
-
 
 
 def create_cards(
@@ -33,9 +30,7 @@ def create_cards(
     session_id: int,
     cards: list,
 ):
-
     for card in cards:
-
         item = DrawnCard(
             session_id=session_id,
             card_id=card.card_id,
@@ -45,8 +40,7 @@ def create_cards(
 
         db.add(item)
 
-    db.commit()
-
+    db.flush()
 
 
 def create_reading(
@@ -56,7 +50,6 @@ def create_reading(
     synthesis: str | None,
     advice: list[str],
 ):
-
     reading = Reading(
         session_id=session_id,
         summary=summary,
@@ -65,4 +58,4 @@ def create_reading(
     )
 
     db.add(reading)
-    db.commit()
+    db.flush()

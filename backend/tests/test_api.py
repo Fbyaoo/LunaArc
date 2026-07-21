@@ -7,7 +7,6 @@ client = TestClient(app)
 
 
 def three_cards():
-
     return [
         {
             "card_id": "major_00",
@@ -31,7 +30,6 @@ def three_cards():
 
 
 def test_create_three_card_reading():
-
     response = client.post(
         "/api/readings",
         json={
@@ -48,7 +46,6 @@ def test_create_three_card_reading():
 
 
 def test_reject_incomplete_draw():
-
     response = client.post(
         "/api/readings",
         json={
@@ -70,7 +67,6 @@ def test_reject_incomplete_draw():
 
 
 def test_reading_contains_tarot_context():
-
     response = client.post(
         "/api/readings",
         json={

@@ -1,4 +1,3 @@
-
 from fastapi import (
     APIRouter,
     Depends,
@@ -25,41 +24,22 @@ router = APIRouter(
 
 @router.get("")
 def get_history(
-    user: User = Depends(
-        get_current_user
-    ),
-
+    user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
-
     records = (
         db.query(TarotSession)
-        .filter(
-            TarotSession.user_id
-            == user.id
-        )
-        .order_by(
-            TarotSession.created_at.desc()
-        )
+        .filter(TarotSession.user_id == user.id)
+        .order_by(TarotSession.created_at.desc())
         .all()
     )
 
-
     return [
-
         {
             "id": item.id,
-
-            "question":
-                item.question,
-
-            "spread_type":
-                item.spread_type,
-
-            "created_at":
-                item.created_at,
+            "question": item.question,
+            "spread_type": item.spread_type,
+            "created_at": item.created_at,
         }
-
         for item in records
-
     ]

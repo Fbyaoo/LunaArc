@@ -7,9 +7,7 @@ client = TestClient(app)
 
 
 def history_count() -> int:
-    response = client.get(
-        "/api/history"
-    )
+    response = client.get("/api/history")
 
     assert response.status_code == 200
 
@@ -77,10 +75,7 @@ def test_three_card_draw_and_read() -> None:
 
     assert len(data["cards"]) == 3
 
-    assert [
-        card["position"]
-        for card in data["cards"]
-    ] == [
+    assert [card["position"] for card in data["cards"]] == [
         "1",
         "2",
         "3",
@@ -104,10 +99,7 @@ def test_single_card_rejects_empty_question() -> None:
 
     assert response.status_code == 400
 
-    assert (
-        response.json()["detail"]["error_code"]
-        == "EMPTY_QUESTION"
-    )
+    assert response.json()["detail"]["error_code"] == "EMPTY_QUESTION"
 
     assert history_count() == before
 
@@ -125,9 +117,6 @@ def test_three_card_rejects_empty_question() -> None:
 
     assert response.status_code == 400
 
-    assert (
-        response.json()["detail"]["error_code"]
-        == "EMPTY_QUESTION"
-    )
+    assert response.json()["detail"]["error_code"] == "EMPTY_QUESTION"
 
     assert history_count() == before

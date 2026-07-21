@@ -5,12 +5,7 @@ from pathlib import Path
 from app.schemas.draw import SpreadType
 
 
-DATA_FILE = (
-    Path(__file__).resolve()
-    .parent.parent
-    / "data"
-    / "tarot_cards.json"
-)
+DATA_FILE = Path(__file__).resolve().parent.parent / "data" / "tarot_cards.json"
 
 
 POSITION_MAP: dict[SpreadType, list[str]] = {

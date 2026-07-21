@@ -14,7 +14,6 @@ class VisionService:
         image_bytes: bytes,
         filename: str,
     ) -> list[DetectedCard]:
-
         filename = filename.lower()
 
         # 模拟未识别到卡牌

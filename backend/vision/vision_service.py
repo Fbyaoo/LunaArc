@@ -21,10 +21,12 @@ class VisionService:
         self,
         image_bytes: bytes,
         filename: str | None = None,
+        event_engine: GestureEventEngine | None = None,
     ) -> list[dict]:
         events: list[VisualEvent] = []
 
         gestures = self.gesture_detector.detect_gestures(image_bytes, filename=filename)
-        events.extend(self.gesture_events.update_many(gestures))
+        engine = event_engine or self.gesture_events
+        events.extend(engine.update_many(gestures))
 
         return [event.model_dump() for event in events]

@@ -1,5 +1,3 @@
-
-
 from functools import lru_cache
 from typing import Literal
 
@@ -7,11 +5,11 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
 class Settings(BaseSettings):
-
     # =====================
     # Authentication
     # =====================
 
+    environment: Literal["development", "test", "production"] = "development"
     jwt_secret_key: str = "change-me"
 
     jwt_algorithm: str = "HS256"
@@ -21,17 +19,18 @@ class Settings(BaseSettings):
     refresh_token_days: int = 30
 
     default_daily_reading_limit: int = 3
-
+    usage_timezone: str = "Asia/Shanghai"
+    database_url: str = "sqlite:///./lunaarc.db"
+    refresh_cookie_secure: bool = False
+    refresh_cookie_samesite: Literal["lax", "strict", "none"] = "lax"
 
     app_name: str = "LunaArc Backend"
     app_version: str = "0.1.0"
 
-    cors_origins: str = (
-        "http://localhost:5173,"
-        "http://127.0.0.1:5173"
-    )
+    cors_origins: str = "http://localhost:5173,http://127.0.0.1:5173"
 
     vision_model_path: str = ""
+    vision_mode: Literal["mock", "real"] = "mock"
     min_confidence: float = 0.6
     max_image_size_mb: int = 10
 
@@ -47,6 +46,15 @@ class Settings(BaseSettings):
         env_file=".env",
         extra="ignore",
     )
+
+    def validate_runtime(self) -> None:
+        if self.environment == "production":
+            if self.jwt_secret_key == "change-me" or len(self.jwt_secret_key) < 32:
+                raise RuntimeError(
+                    "生产环境必须通过 JWT_SECRET_KEY 配置至少 32 位的随机密钥。"
+                )
+            if not self.refresh_cookie_secure:
+                raise RuntimeError("生产环境必须启用 REFRESH_COOKIE_SECURE。")
 
 
 @lru_cache

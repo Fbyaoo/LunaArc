@@ -16,7 +16,6 @@ router = APIRouter(
 )
 
 
-
 @router.post(
     "",
     response_model=DrawResponse,
@@ -24,11 +23,7 @@ router = APIRouter(
 def draw_cards(
     request: DrawRequest,
 ):
-
-    cards = draw_service.draw(
-        request.spread_type
-    )
-
+    cards = draw_service.draw(request.spread_type)
 
     return DrawResponse(
         spread_type=request.spread_type,

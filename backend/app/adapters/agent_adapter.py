@@ -30,7 +30,7 @@ def _load_real_agent_symbols():
 
         return TarotAgent, AgentReadingRequest, AgentDrawnCard
 
-    except ModuleNotFoundError as first_error:
+    except ModuleNotFoundError:
         repository_root = Path(__file__).resolve().parents[3]
 
         if str(repository_root) not in sys.path:
@@ -67,9 +67,7 @@ def _convert_agent_result(result: Any) -> ReadingResponse:
     elif isinstance(result, dict):
         payload = result
     else:
-        raise AgentIntegrationError(
-            "Agent 返回值必须是 Pydantic Model 或 dict。"
-        )
+        raise AgentIntegrationError("Agent 返回值必须是 Pydantic Model 或 dict。")
 
     try:
         return ReadingResponse.model_validate(payload)
@@ -99,28 +97,27 @@ class AgentAdapter:
         settings = get_settings()
 
         if settings.agent_mode == "real":
+            if not settings.openai_api_key:
+                raise AgentIntegrationError(
+                    "AGENT_MODE=real 时必须配置 OPENAI_API_KEY。"
+                )
             return self._generate_real(request)
 
         return self._generate_mock(request)
-
-
 
     def resume_reading(
         self,
         request: ReadingRequest,
         user_supplement: str,
     ) -> ReadingResponse:
-
         settings = get_settings()
 
         if settings.agent_mode == "real":
-
             (
                 _,
                 AgentReadingRequest,
                 AgentDrawnCard,
             ) = _load_real_agent_symbols()
-
 
             agent_cards = [
                 AgentDrawnCard(
@@ -132,7 +129,6 @@ class AgentAdapter:
                 for card in request.cards
             ]
 
-
             agent_request = AgentReadingRequest(
                 question=request.question,
                 spread_type=request.spread_type,
@@ -140,54 +136,37 @@ class AgentAdapter:
                 user_history=request.user_history,
             )
 
-
-            result = (
-                _get_real_agent()
-                .resume_reading(
+            try:
+                result = _get_real_agent().resume_reading(
                     agent_request,
                     user_supplement,
                 )
-            )
+            except Exception as error:
+                raise AgentIntegrationError(
+                    "真实 Agent 暂时不可用，请稍后重试。"
+                ) from error
 
+            return _convert_agent_result(result)
 
-            return _convert_agent_result(
-                result
-            )
-
-
-        enriched_cards = [
-            enrich_card(card)
-            for card in request.cards
-        ]
-
+        enriched_cards = [enrich_card(card) for card in request.cards]
 
         mock_request = {
             "question": request.question,
             "spread_type": request.spread_type,
-            "cards": [
-                card.model_dump()
-                for card in enriched_cards
-            ],
+            "cards": [card.model_dump() for card in enriched_cards],
             "user_history": request.user_history,
         }
 
-
-        return (
-            mock_tarot_agent
-            .resume_reading(
-                mock_request,
-                user_supplement,
-            )
+        return mock_tarot_agent.resume_reading(
+            mock_request,
+            user_supplement,
         )
-
 
     def _generate_real(
         self,
         request: ReadingRequest,
     ) -> ReadingResponse:
-        _, AgentReadingRequest, AgentDrawnCard = (
-            _load_real_agent_symbols()
-        )
+        _, AgentReadingRequest, AgentDrawnCard = _load_real_agent_symbols()
 
         agent_cards = [
             AgentDrawnCard(
@@ -210,9 +189,12 @@ class AgentAdapter:
             # 保留 Agent models.py 中 model_validator 的原始校验错误。
             raise
 
-        result = _get_real_agent().generate_reading(
-            agent_request
-        )
+        try:
+            result = _get_real_agent().generate_reading(agent_request)
+        except Exception as error:
+            raise AgentIntegrationError(
+                "真实 Agent 暂时不可用，请稍后重试。"
+            ) from error
 
         return _convert_agent_result(result)
 
@@ -221,24 +203,16 @@ class AgentAdapter:
         request: ReadingRequest,
     ) -> ReadingResponse:
         # Mock 模式继续使用后端牌库，保证现有测试和无 Key 环境可运行。
-        enriched_cards = [
-            enrich_card(card)
-            for card in request.cards
-        ]
+        enriched_cards = [enrich_card(card) for card in request.cards]
 
         mock_request = {
             "question": request.question,
             "spread_type": request.spread_type,
-            "cards": [
-                card.model_dump()
-                for card in enriched_cards
-            ],
+            "cards": [card.model_dump() for card in enriched_cards],
             "user_history": request.user_history,
         }
 
-        return mock_tarot_agent.generate_reading(
-            mock_request
-        )
+        return mock_tarot_agent.generate_reading(mock_request)
 
 
 agent_adapter = AgentAdapter()

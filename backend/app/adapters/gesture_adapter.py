@@ -4,35 +4,21 @@ from app.schemas.gesture import (
 
 
 GESTURE_ACTION_MAP = {
-
-    "fist":
-        "shuffle",
-
-    "one":
-        "switch_spread",
-
-    "like":
-        "request_reading",
-
-    "peace":
-        "reset",
+    "fist": "shuffle",
+    "one": "switch_spread",
+    "like": "request_reading",
+    "peace": "reset",
 }
 
 
 class GestureAdapter:
-
-
     def convert(
         self,
         gesture: str,
     ) -> GestureAction:
-
-        action = (
-            GESTURE_ACTION_MAP
-            .get(
-                gesture,
-                "unknown",
-            )
+        action = GESTURE_ACTION_MAP.get(
+            gesture,
+            "unknown",
         )
 
         return GestureAction(

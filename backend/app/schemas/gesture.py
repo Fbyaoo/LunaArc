@@ -39,7 +39,6 @@ class GestureEvent(BaseModel):
 
 
 class GestureAction(BaseModel):
-
     gesture: str
 
     action: ActionType
