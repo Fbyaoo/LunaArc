@@ -37,8 +37,8 @@ jobs:
       - name: Lint and format check
         working-directory: backend
         run: |
-          ruff check app tests migrations
-          ruff format --check app tests migrations
+          ruff check app tests migrations scripts
+          ruff format --check app tests migrations scripts
 
       - name: Validate migrations
         working-directory: backend
@@ -50,4 +50,4 @@ jobs:
 
       - name: Compile application
         working-directory: backend
-        run: python -m compileall -q app agent vision
+        run: python -m compileall -q app agent vision scripts

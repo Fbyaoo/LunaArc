@@ -10,11 +10,11 @@ LunaArc 塔罗应用后端，基于 FastAPI、SQLAlchemy 和 Pydantic。
 - 日签、单牌、三牌抽牌与解读
 - 用户隔离的占卜历史
 - Mock/Real Agent 适配层及三牌追问流程
-- 图片上传校验和视觉模块适配层
+- 可选图片上传兼容接口
 - 手势识别 WebSocket
 - Alembic 数据库迁移、Docker 启动和自动化测试
 
-卡牌图片识别目前仍使用 Mock 实现；手势识别使用 `vision/` 下的 YOLO 模型。
+课程展示使用系统随机抽牌，不依赖卡牌识别；手势识别使用 `vision/` 下的 YOLO 模型。
 
 ## 环境要求
 
@@ -49,6 +49,20 @@ python -m pytest -q
 python -m unittest -q vision.test.test_gesture_contract
 python -m compileall -q app agent vision
 ```
+
+## 课程展示
+
+默认 `AGENT_MODE=mock` 会使用内置牌义规则生成完整离线解读，无需 API Key 或外网，适合课堂现场稳定演示。
+
+启动服务后，在另一个终端运行完整演示脚本：
+
+```bash
+python scripts/demo_backend.py
+```
+
+脚本会依次演示健康检查、注册、牌库、三牌抽取与解读、额度、历史、Token 刷新和退出。前端联调协议见 `docs/frontend_api.md`。
+
+完整的课堂讲解顺序和现场故障预案见 `docs/course_demo.md`。
 
 ## 关键配置
 
@@ -85,7 +99,7 @@ python -m compileall -q app agent vision
 | POST | `/api/draw-and-read` | 抽牌并解读 |
 | POST | `/api/readings/clarify` | 补充三牌追问信息 |
 | GET | `/api/history` | 当前用户历史 |
-| POST | `/api/detect` | 上传卡牌图片 |
+| POST | `/api/detect` | 兼容保留的图片接口（课程展示不使用） |
 | WS | `/ws/gesture` | 手势识别事件流 |
 
 除健康检查、卡牌数据、抽牌、图片识别和认证入口外，用户相关接口均要求 Bearer Access Token。
@@ -101,4 +115,4 @@ docker run --env-file .env -p 8000:8000 lunaarc-backend
 
 默认镜像包含真实 Agent、手势视觉和开发检查依赖。
 
-卡牌视觉的 Real 模式遵循 `docs/vision_contract.md`，并要求视觉模块提供 `vision.detector.TarotCardDetector`；仓库当前模型只用于手势识别。
+课程展示不使用卡牌图片识别；仓库中的视觉模型只用于可选的手势交互。
