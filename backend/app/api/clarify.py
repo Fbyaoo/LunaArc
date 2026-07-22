@@ -10,6 +10,7 @@ from app.dependencies.auth import get_current_user
 from app.services.quota_service import check_reading_quota
 from app.services.usage_service import consume_reading
 from app.services.clarify_cache import (
+    get_clarify_prompt,
     get_request,
     delete_request,
 )
@@ -47,6 +48,8 @@ def clarify_reading(
             detail="会话已过期，请重新抽牌",
         )
 
+    clarification_prompt = get_clarify_prompt(session_id, current_user.id)
+
     quota_reserved = check_reading_quota(db, current_user, request.spread_type)
 
     try:
@@ -64,17 +67,23 @@ def clarify_reading(
             request.spread_type,
             current_user.id,
         )
-        create_cards(db, session.id, request.cards)
-        create_reading(
+        create_cards(db, session.id, request.cards, result.card_readings)
+        reading_record = create_reading(
             db,
             session.id,
             result.summary,
             result.synthesis,
             result.advice,
+            clarification_prompt=clarification_prompt,
+            clarification_answer=supplement,
         )
         if not quota_reserved:
             consume_reading(db, current_user, request.spread_type)
         db.commit()
+        db.refresh(reading_record)
+        result.reading_id = reading_record.id
+        result.saved = reading_record.saved
+        result.created_at = reading_record.created_at
     except Exception:
         db.rollback()
         raise

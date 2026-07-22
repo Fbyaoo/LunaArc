@@ -144,6 +144,16 @@ class DrawnCard(Base):
         nullable=True,
     )
 
+    interpretation: Mapped[str | None] = mapped_column(
+        Text,
+        nullable=True,
+    )
+
+    keywords: Mapped[str | None] = mapped_column(
+        Text,
+        nullable=True,
+    )
+
     session = relationship(
         "Session",
         back_populates="cards",
@@ -173,6 +183,38 @@ class Reading(Base):
 
     advice: Mapped[str] = mapped_column(
         Text,
+    )
+
+    title: Mapped[str | None] = mapped_column(
+        String(200),
+        nullable=True,
+    )
+
+    status: Mapped[str] = mapped_column(
+        String(30),
+        default="completed",
+        nullable=False,
+    )
+
+    saved: Mapped[bool] = mapped_column(
+        Boolean,
+        default=False,
+        nullable=False,
+    )
+
+    saved_at: Mapped[datetime | None] = mapped_column(
+        DateTime,
+        nullable=True,
+    )
+
+    clarification_prompt: Mapped[str | None] = mapped_column(
+        Text,
+        nullable=True,
+    )
+
+    clarification_answer: Mapped[str | None] = mapped_column(
+        Text,
+        nullable=True,
     )
 
     created_at: Mapped[datetime] = mapped_column(
@@ -277,3 +319,37 @@ class Subscription(Base):
     status: Mapped[str] = mapped_column(String(20), default="active")
 
     renewal_date: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
+
+
+class GuideSession(Base):
+    __tablename__ = "guide_sessions"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    user_id: Mapped[int] = mapped_column(
+        ForeignKey("users.id"), nullable=False, index=True
+    )
+    reading_id: Mapped[int | None] = mapped_column(
+        ForeignKey("readings.id"), nullable=True, index=True
+    )
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=utc_now)
+    updated_at: Mapped[datetime] = mapped_column(DateTime, default=utc_now)
+
+    messages = relationship(
+        "GuideMessage",
+        back_populates="session",
+        order_by="GuideMessage.created_at",
+    )
+
+
+class GuideMessage(Base):
+    __tablename__ = "guide_messages"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    session_id: Mapped[int] = mapped_column(
+        ForeignKey("guide_sessions.id"), nullable=False, index=True
+    )
+    role: Mapped[str] = mapped_column(String(20), nullable=False)
+    content: Mapped[str] = mapped_column(Text, nullable=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=utc_now)
+
+    session = relationship("GuideSession", back_populates="messages")

@@ -16,6 +16,7 @@ from app.api.detection import router as detection_router
 from app.api.readings import router as readings_router
 from app.api.clarify import router as clarify_router
 from app.api.history import router as history_router
+from app.api.guide import router as guide_router
 from app.config.settings import get_settings
 
 
@@ -50,6 +51,7 @@ app.include_router(detection_router)
 app.include_router(readings_router)
 app.include_router(clarify_router)
 app.include_router(history_router)
+app.include_router(guide_router)
 app.include_router(gesture_router)
 app.include_router(draw_router)
 app.include_router(draw_reading_router)

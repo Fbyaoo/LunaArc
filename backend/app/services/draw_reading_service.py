@@ -82,7 +82,7 @@ class DrawReadingService:
         if reading.status == "awaiting_clarify":
             if user is None:
                 raise RuntimeError("clarification requires an authenticated user")
-            reading.session_id = save_request(reading_request, user.id)
+            reading.session_id = save_request(reading_request, user.id, reading.summary)
             return {"cards": cards, "reading": reading}
 
         # 4. 保存占卜会话、卡牌和解读
@@ -98,9 +98,10 @@ class DrawReadingService:
                 db=db,
                 session_id=session.id,
                 cards=reading_cards,
+                card_readings=reading.card_readings,
             )
 
-            create_reading(
+            reading_record = create_reading(
                 db=db,
                 session_id=session.id,
                 summary=reading.summary,
@@ -116,6 +117,10 @@ class DrawReadingService:
                 )
 
             db.commit()
+            db.refresh(reading_record)
+            reading.reading_id = reading_record.id
+            reading.saved = reading_record.saved
+            reading.created_at = reading_record.created_at
 
         except Exception:
             db.rollback()

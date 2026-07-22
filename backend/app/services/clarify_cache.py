@@ -12,12 +12,14 @@ TTL = 600
 def save_request(
     request: ReadingRequest,
     user_id: int,
+    clarify_prompt: str | None = None,
 ) -> str:
     session_id = uuid4().hex
 
     _cache[session_id] = {
         "request": request,
         "user_id": user_id,
+        "clarify_prompt": clarify_prompt,
         "expire": time.time() + TTL,
     }
 
@@ -42,6 +44,13 @@ def get_request(
         return None
 
     return item["request"]
+
+
+def get_clarify_prompt(session_id: str, user_id: int) -> str | None:
+    item = _cache.get(session_id)
+    if item is None or item["user_id"] != user_id or item["expire"] < time.time():
+        return None
+    return item.get("clarify_prompt")
 
 
 def delete_request(

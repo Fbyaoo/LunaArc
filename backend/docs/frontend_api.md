@@ -56,6 +56,13 @@ fetch(url, {
 | POST | `/api/draw` | 否 | 只抽牌，不生成解读 |
 | POST | `/api/draw-and-read` | 是 | 抽牌、解读并保存 |
 | POST | `/api/readings/clarify` | 是 | 回答三牌追问 |
+| GET | `/api/readings/recent?limit=3` | 是 | 最近解读 |
+| GET | `/api/readings` | 是 | 分页历史/收藏列表 |
+| GET | `/api/readings/{reading_id}` | 是 | 解读详情 |
+| PATCH | `/api/readings/{reading_id}` | 是 | 收藏或取消收藏 |
+| POST | `/api/guide/sessions` | 是 | 创建 AI 向导会话 |
+| GET | `/api/guide/sessions` | 是 | 向导会话列表 |
+| GET/POST | `/api/guide/sessions/{session_id}/messages` | 是 | 获取/发送消息 |
 | GET | `/api/usage/me` | 是 | 今日额度 |
 | GET | `/api/history` | 是 | 当前用户历史 |
 | GET | `/api/subscriptions/me` | 是 | 当前套餐 |
@@ -152,7 +159,10 @@ Content-Type: application/json
     "summary": "...",
     "card_readings": [],
     "synthesis": "...",
-    "advice": ["..."]
+    "advice": ["..."],
+    "reading_id": 1,
+    "saved": false,
+    "created_at": "2026-07-22T15:00:00"
   }
 }
 ```
@@ -190,7 +200,38 @@ Authorization: Bearer <access_token>
 
 历史接口只返回当前用户的数据，并按时间倒序排列。
 
-## 6. 刷新与退出
+## 6. 解读历史、详情与收藏
+
+```http
+GET /api/readings/recent?limit=3
+GET /api/readings?page=1&page_size=12&sort=-created_at
+GET /api/readings?saved=true&page=1&page_size=30&sort=-created_at
+GET /api/readings/{reading_id}
+PATCH /api/readings/{reading_id}
+```
+
+收藏请求体为 `{"saved": true}`，取消收藏改为 `false`。详情会返回问题、牌面、正逆位、牌位、单牌解释、综合解释、建议和追问信息。访问其他用户的记录统一返回 `404`。
+
+## 7. AI Tarot Guide
+
+创建普通会话传 `{"reading_id": null}`，从某次解读进入则传对应数字 ID：
+
+```http
+POST /api/guide/sessions
+```
+
+返回 `session_id`。发送消息使用普通 HTTP：
+
+```http
+POST /api/guide/sessions/{session_id}/messages
+Content-Type: application/json
+
+{"content": "我今天可以先做什么？"}
+```
+
+返回一条 `role=assistant` 的消息；后端会同时保存用户消息和 Agent 回复。单条消息最多 2000 字，模型上下文读取最近 12 条消息，并自动加载关联 Reading。生产部署使用 `AGENT_MODE=real` 时会调用真实大模型。
+
+## 8. 刷新与退出
 
 ```http
 POST /api/auth/refresh
@@ -230,4 +271,4 @@ POST /api/auth/logout
 
 ## 展示建议
 
-课程现场使用默认 `AGENT_MODE=mock`，由内置牌义规则生成离线解读，不依赖外网或第三方模型。若要展示真实 AI 解读，再配置 `AGENT_MODE=real` 和 `OPENAI_API_KEY`。
+正式联调和课程展示配置 `AGENT_MODE=real`、`OPENAI_API_KEY`、`OPENAI_BASE_URL` 和 `OPENAI_MODEL`，Reading 与 Guide 都会接入真实 AI。`mock` 仅供自动测试和断网应急演示。
